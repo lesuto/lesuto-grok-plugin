@@ -41,7 +41,7 @@ test('redactSecrets never echoes live env values', () => {
   });
 });
 
-test('adminGraphql requires both secrets before fetch', async () => {
+test('adminGraphql requires the agent key before fetch', async () => {
   await withMockFetch(() => {
     throw new Error('fetch should not run');
   }, async (calls) => {
@@ -49,7 +49,7 @@ test('adminGraphql requires both secrets before fetch', async () => {
       await assert.rejects(() => adminGraphql('query { me { id } }'), /LESUTO_AGENT_KEY/);
     });
     await withEnv({ LESUTO_AGENT_KEY: 'lsk_test_x', LESUTO_CHANNEL_TOKEN: undefined }, async () => {
-      await assert.rejects(() => adminGraphql('query { me { id } }'), /LESUTO_CHANNEL_TOKEN/);
+      await assert.rejects(() => adminGraphql('query { me { id } }'), /LESUTO_CHANNEL_TOKEN|list_stores/);
     });
     assert.equal(calls.length, 0);
   });
@@ -64,6 +64,7 @@ test('adminGraphql POSTs pinned URL with grok headers and no follow', async () =
       assert.equal(headers['X-Lesuto-Agent-Key'], 'lsk_test_secretvalue');
       assert.equal(headers['X-Lesuto-Client'], 'grok');
       assert.equal(headers['vendure-token'], 'merchant_demo_admin');
+      assert.equal(headers['X-Store'], 'merchant_demo_admin');
       assert.equal(headers.Authorization, undefined);
       assert.equal(headers['X-Crm-Agent-Token'], undefined);
       assert.equal(headers['X-Tenant-Api-Key'], undefined);

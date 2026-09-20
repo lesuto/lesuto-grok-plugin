@@ -11,6 +11,8 @@ import { connectTools } from './tools/connect.mjs';
 import { commerceTools } from './tools/commerce.mjs';
 import { hubTools } from './tools/hub.mjs';
 import { blogTools } from './tools/blog.mjs';
+import { storeTools } from './tools/stores.mjs';
+import { orgTools } from './tools/org.mjs';
 
 const PROTOCOL = '2024-11-05';
 
@@ -33,6 +35,8 @@ const TOOLS = [
   ...commerceTools,
   ...hubTools,
   ...blogTools,
+  ...storeTools,
+  ...orgTools,
 ];
 
 function jsonText(payload, isError = false) {
@@ -57,9 +61,9 @@ function initializeResult() {
   return {
     protocolVersion: PROTOCOL,
     capabilities: { tools: { listChanged: false } },
-    serverInfo: { name: 'lesuto-grok', version: '1.0.0' },
+    serverInfo: { name: 'lesuto-grok', version: '1.3.0' },
     instructions:
-      'You are acting as this merchant or supplier on their Lesuto channel. Use named tools for bookings, orders, catalog, analytics, Hub, blog, shipping, and site status. Destructive tools require confirm true. Always call api.lesuto.com.',
+      'You are acting as this merchant or supplier on their Lesuto stores. Start with account_overview for the big picture across every store on this key. Call list_organizations and org_overview when they ask about a company umbrella. Call use_store with L1 or the store name when the question is about one store. Use named tools for bookings, orders, catalog, analytics, Hub, blog, shipping, and site status. Destructive tools require confirm true. Always call api.lesuto.com.',
   };
 }
 

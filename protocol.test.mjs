@@ -10,6 +10,8 @@ const EXPECTED_TOOLS = [
   'orders_snapshot', 'search_catalog', 'inventory_stock', 'channel_analytics', 'shipping_labels',
   'store_status', 'site_status', 'hub_posts',
   'blog_list', 'blog_get', 'blog_create', 'blog_update', 'blog_publish', 'blog_unpublish', 'blog_delete',
+  'list_stores', 'use_store', 'account_overview',
+  'list_organizations', 'org_overview',
 ];
 
 const DESTRUCTIVE_TOOLS = ['cancel_booking', 'complete_booking', 'no_show_booking', 'blog_delete'];

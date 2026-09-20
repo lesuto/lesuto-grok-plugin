@@ -85,7 +85,7 @@ test('marketplace packet pins a 40-char SHA and the public repo', () => {
   assert.match(doc, /github\.com\/lesuto\/lesuto-grok-plugin/);
   assert.match(doc, /xai-org\/plugin-marketplace/);
   assert.match(doc, /"sha": "[a-f0-9]{40}"/);
-  assert.match(doc, /Do not open that PR until Arron asks/);
+  assert.match(doc, /Code-owner review is required/);
 });
 
 test('README rate limits match the gateway constants', () => {

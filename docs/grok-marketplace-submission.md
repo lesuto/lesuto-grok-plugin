@@ -1,6 +1,6 @@
 # Submitting Lesuto to the xAI Grok Build marketplace
 
-This is the packet for a later PR against [xai-org/plugin-marketplace](https://github.com/xai-org/plugin-marketplace). **Do not open that PR until Arron asks.**
+This is the packet for a PR against [xai-org/plugin-marketplace](https://github.com/xai-org/plugin-marketplace).
 
 Public source (Grok clones this SHA): https://github.com/lesuto/lesuto-grok-plugin
 
@@ -15,12 +15,12 @@ git ls-remote https://github.com/lesuto/lesuto-grok-plugin.git HEAD
 ```json
 {
   "name": "lesuto",
-  "description": "Ask Grok how last 30 days looked. Send a Connect invite. Check stock. Same Lesuto channel admin you already run.",
+  "description": "Ask Grok how all your stores and companies are doing. Drill into one when you need to.",
   "category": "productivity",
   "source": {
     "source": "url",
     "url": "https://github.com/lesuto/lesuto-grok-plugin.git",
-    "sha": "e7a385c7c94322616a922b4253631a0cd952f989"
+    "sha": "cf5a07a2ff8d20414548bd1499f76ca56dcf0cee"
   },
   "homepage": "https://www.lesuto.com/integrations/grok-agent",
   "keywords": ["lesuto", "lesuto connect", "lesuto hub", "lesuto seller"],
@@ -28,7 +28,7 @@ git ls-remote https://github.com/lesuto/lesuto-grok-plugin.git HEAD
 }
 ```
 
-Replace the `sha` with `git ls-remote https://github.com/lesuto/lesuto-grok-plugin.git HEAD` immediately before the xAI PR. Public HEAD when this packet was written: `e7a385c7c94322616a922b4253631a0cd952f989`. Not a branch. Not a tag.
+Replace the `sha` with `git ls-remote https://github.com/lesuto/lesuto-grok-plugin.git HEAD` immediately before the xAI PR. Public HEAD when this packet was written: `cf5a07a2ff8d20414548bd1499f76ca56dcf0cee`. Not a branch. Not a tag.
 
 ## After forking xai-org/plugin-marketplace
 

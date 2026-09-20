@@ -19,7 +19,7 @@ test('every tool has execute, schema, and a unique name', () => {
 });
 
 test('tool GraphQL operations are not on the merchant denylist', () => {
-  for (const rel of ['tools/connect.mjs', 'tools/commerce.mjs', 'tools/hub.mjs', 'tools/blog.mjs']) {
+  for (const rel of ['tools/connect.mjs', 'tools/commerce.mjs', 'tools/hub.mjs', 'tools/blog.mjs', 'tools/stores.mjs', 'tools/org.mjs']) {
     const src = readFileSync(join(pluginRoot, rel), 'utf8');
     const blocks = [...src.matchAll(/`((?:query|mutation)[\s\S]*?)`/g)].map((m) => m[1]);
     assert.ok(blocks.length > 0, rel);
@@ -49,6 +49,27 @@ test('create_booking_invite only emails when sendEmail is true', async () => {
       return jsonResponse(200, { data: { createBookingInvite: { id: '2' } } });
     }, async () => {
       await tool.execute({ meetingTypeId: 'mt-1', guestEmail: 'guest@example.com', sendEmail: true });
+    });
+  });
+});
+
+test('org_overview maps 1y to last 365 days and ytd to January 1', async () => {
+  const { orgTools, orgPeriodRange } = await import('./tools/org.mjs');
+  const ytd = orgPeriodRange('ytd');
+  const year = orgPeriodRange('1y');
+  assert.equal(new Date(ytd.startDate).getUTCMonth(), 0);
+  assert.equal(new Date(ytd.startDate).getUTCDate(), 1);
+  const yearMs = new Date(year.endDate) - new Date(year.startDate);
+  assert.ok(yearMs >= 364 * 24 * 60 * 60 * 1000);
+  const tool = orgTools.find((t) => t.name === 'org_overview');
+  await withAgentEnv(async () => {
+    await withMockFetch((_url, init) => {
+      const body = JSON.parse(init.body);
+      assert.equal(body.variables.orgId, '9');
+      assert.equal(body.variables.filters.includeChildOrgs, true);
+      return jsonResponse(200, { data: { organizationOverview: { totalOrders: 0 } } });
+    }, async () => {
+      await tool.execute({ orgId: '9', period: '1y', includeChildOrgs: true });
     });
   });
 });
@@ -119,10 +140,25 @@ test('blog_create stays draft unless publish is true', async () => {
   });
 });
 
-test('skills cover Connect, catalog, orders, and analytics', () => {
+test('org_overview coerces unknown periods to 30d', async () => {
+  const tool = TOOLS.find((t) => t.name === 'org_overview');
+  await withAgentEnv(async () => {
+    await withMockFetch((_url, init) => {
+      const body = JSON.parse(init.body);
+      assert.equal(body.variables.orgId, '12');
+      assert.equal(typeof body.variables.filters.startDate, 'string');
+      assert.equal(typeof body.variables.filters.endDate, 'string');
+      return jsonResponse(200, { data: { organizationOverview: { totalRevenue: 0 } } });
+    }, async () => {
+      await tool.execute({ orgId: '12', period: 'forever' });
+    });
+  });
+});
+
+test('skills cover Connect, catalog, orders, analytics, and organizations', () => {
   const dir = join(pluginRoot, 'skills');
   const names = readdirSync(dir);
-  for (const need of ['lesuto-connect', 'lesuto-catalog', 'lesuto-orders', 'lesuto-analytics']) {
+  for (const need of ['lesuto-connect', 'lesuto-catalog', 'lesuto-orders', 'lesuto-analytics', 'lesuto-organizations']) {
     assert.ok(names.includes(need), need);
     const skill = readFileSync(join(dir, need, 'SKILL.md'), 'utf8');
     assert.match(skill, /api\.lesuto\.com|Lesuto/);
@@ -139,4 +175,7 @@ test('skills cover Connect, catalog, orders, and analytics', () => {
   assert.match(catalog, /search_catalog/);
   const analytics = readFileSync(join(dir, 'lesuto-analytics/SKILL.md'), 'utf8');
   assert.match(analytics, /channel_analytics/);
+  const orgs = readFileSync(join(dir, 'lesuto-organizations/SKILL.md'), 'utf8');
+  assert.match(orgs, /list_organizations/);
+  assert.match(orgs, /org_overview/);
 });

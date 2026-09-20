@@ -10,6 +10,8 @@ test('denies staff CRM and key minting field names', () => {
   assert.equal(deniedOp('issueAgentAccessKey'), true);
   assert.equal(deniedOp('rotateAgentAccessKey'), true);
   assert.equal(deniedOp('agentAccessUsage'), true);
+  assert.equal(deniedOp('agentEligibleStores'), true);
+  assert.equal(deniedOp('accessibleStores'), false);
   assert.equal(deniedOp('bulkDeleteForPage'), true);
   assert.equal(deniedOp('restoreForPage'), true);
   assert.equal(deniedOp('ListLeads'), true);

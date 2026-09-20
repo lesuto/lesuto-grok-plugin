@@ -31,6 +31,8 @@ test('package has no install-time network and no runtime deps', () => {
   assert.equal(pkg.dependencies, undefined);
   assert.match(pkg.scripts.test, /^node --test --test-concurrency=1 /);
   assert.match(pkg.engines.node, /20/);
+  assert.equal(existsSync(join(pluginRoot, 'test.mjs')), false);
+  assert.equal(existsSync(join(pluginRoot, 'tests')), false);
 });
 
 test('MCP manifest interpolates secrets and pins the API', () => {

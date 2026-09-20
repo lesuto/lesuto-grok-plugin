@@ -20,7 +20,7 @@ git ls-remote https://github.com/lesuto/lesuto-grok-plugin.git HEAD
   "source": {
     "source": "url",
     "url": "https://github.com/lesuto/lesuto-grok-plugin.git",
-    "sha": "PINNED_COMMIT_SHA"
+    "sha": "be223a00bf7fcc1bf7918d74ec08001af0e0bb0c"
   },
   "homepage": "https://www.lesuto.com/integrations/grok-agent",
   "keywords": ["lesuto", "lesuto connect", "lesuto hub", "lesuto seller"],
@@ -28,7 +28,7 @@ git ls-remote https://github.com/lesuto/lesuto-grok-plugin.git HEAD
 }
 ```
 
-Replace `PINNED_COMMIT_SHA` with the 40-character lowercase commit from `git ls-remote`. Not a branch. Not a tag.
+Replace the `sha` with `git ls-remote https://github.com/lesuto/lesuto-grok-plugin.git HEAD` immediately before the xAI PR. First public commit: `be223a00bf7fcc1bf7918d74ec08001af0e0bb0c`. Not a branch. Not a tag.
 
 ## After forking xai-org/plugin-marketplace
 

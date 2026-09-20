@@ -127,4 +127,12 @@ Reads cost **1** integration credit. Writes cost **2**. Exhausted credits return
 
 Network: this process only calls `https://api.lesuto.com/api/v3/admin/graphql` (stdio MCP, no install scripts, no remote shell). Destructive GraphQL and cancel/complete/no-show tools require `confirm: true`.
 
+## Tests
+
+From this directory, with Node.js 20 or newer. No network and no live keys:
+
+```bash
+npm test
+```
+
 License: MIT. Copyright Lesuto Technologies.

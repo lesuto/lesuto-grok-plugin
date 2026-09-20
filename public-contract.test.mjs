@@ -1,0 +1,100 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { pluginRoot } from './test/helpers.mjs';
+
+const read = (rel) => readFileSync(join(pluginRoot, rel), 'utf8');
+
+test('plugin sources never hardcode the admin API host', () => {
+  for (const rel of ['server.mjs', 'lib/graphql.mjs', 'README.md', 'package.json']) {
+    const src = read(rel);
+    assert.equal(src.includes('https://admin.lesuto.com'), false, rel);
+  }
+  assert.match(read('server.mjs'), /never admin\.lesuto\.com/);
+  assert.match(read('lib/graphql.mjs'), /api\.lesuto\.com/);
+});
+
+test('plugin sources do not log agent secrets', () => {
+  for (const rel of ['server.mjs', 'lib/graphql.mjs']) {
+    const src = read(rel);
+    assert.equal(/console\.(log|info|debug|error|warn)\([^)]*LESUTO_AGENT_KEY/.test(src), false);
+    assert.equal(/stderr\.write\([^)]*LESUTO_AGENT_KEY/.test(src), false);
+  }
+  assert.match(read('lib/graphql.mjs'), /redirect: 'error'/);
+});
+
+test('package has no install-time network and no runtime deps', () => {
+  const pkg = JSON.parse(read('package.json'));
+  assert.equal(pkg.scripts?.postinstall, undefined);
+  assert.equal(pkg.scripts?.preinstall, undefined);
+  assert.equal(pkg.dependencies, undefined);
+  assert.match(pkg.scripts.test, /^node --test --test-concurrency=1 /);
+  assert.match(pkg.engines.node, /20/);
+});
+
+test('MCP manifest interpolates secrets and pins the API', () => {
+  const mcp = JSON.parse(read('.mcp.json'));
+  const lesuto = mcp.mcpServers.lesuto;
+  assert.equal(lesuto.command, 'node');
+  assert.deepEqual(lesuto.args, ['${GROK_PLUGIN_ROOT}/server.mjs']);
+  assert.equal(lesuto.env.LESUTO_API_URL, 'https://api.lesuto.com');
+  assert.equal(lesuto.env.LESUTO_AGENT_KEY, '${LESUTO_AGENT_KEY}');
+  assert.equal(lesuto.env.LESUTO_CHANNEL_TOKEN, '${LESUTO_CHANNEL_TOKEN}');
+});
+
+test('Grok plugin.json has homepage, license, icon, and brand keywords', () => {
+  const manifest = JSON.parse(read('.grok-plugin/plugin.json'));
+  const rootManifest = JSON.parse(read('plugin.json'));
+  assert.deepEqual(manifest, rootManifest);
+  assert.equal(manifest.name, 'lesuto');
+  assert.equal(manifest.license, 'MIT');
+  assert.equal(manifest.homepage, 'https://www.lesuto.com/integrations/grok-agent');
+  assert.equal(manifest.icon, 'assets/lesuto-mark.png');
+  assert.ok(manifest.keywords.includes('lesuto'));
+  assert.ok(existsSync(join(pluginRoot, 'assets/lesuto-mark.png')));
+  assert.ok(existsSync(join(pluginRoot, 'LICENSE')));
+  assert.match(read('LICENSE'), /Lesuto Technologies/);
+});
+
+test('README has logo, signup, install, secrets, and no internal jargon', () => {
+  const readme = read('README.md');
+  assert.match(readme, /assets\/lesuto-mark\.png/);
+  assert.match(readme, /https:\/\/www\.lesuto\.com\/signup/);
+  assert.match(readme, /LESUTO_AGENT_KEY/);
+  assert.match(readme, /LESUTO_CHANNEL_TOKEN/);
+  assert.match(readme, /AI Agent Access/);
+  assert.match(readme, /Grok Build/);
+  assert.match(readme, /Let's Succeed Together/);
+  assert.match(readme, /grok plugin install lesuto\/lesuto-grok-plugin/);
+  assert.match(readme, /60/);
+  assert.match(readme, /integration credit/);
+  for (const banned of [
+    'SuperAdmin', 'Vendure', 'NestJS', 'TypeORM', 'Elasticsearch',
+    'UpdateInternalPlatform', 'ReadInternalPlatform', 'internal-superadmin',
+    'X-Lesuto-Agent-Key', 'X-Crm-Agent-Token',
+  ]) {
+    assert.equal(readme.includes(banned), false, banned);
+  }
+});
+
+test('marketplace packet pins a 40-char SHA and the public repo', () => {
+  const doc = read('docs/grok-marketplace-submission.md');
+  assert.match(doc, /github\.com\/lesuto\/lesuto-grok-plugin/);
+  assert.match(doc, /xai-org\/plugin-marketplace/);
+  assert.match(doc, /"sha": "[a-f0-9]{40}"/);
+  assert.match(doc, /Do not open that PR until Arron asks/);
+});
+
+test('README rate limits match the gateway constants', () => {
+  const limitsPath = join(pluginRoot, '../api-service/internal/gateway/grok_ratelimit.go');
+  if (!existsSync(limitsPath)) return;
+  const go = readFileSync(limitsPath, 'utf8');
+  const minute = go.match(/grokPerMinuteLimit\s*=\s*(\d+)/)[1];
+  const hour = go.match(/grokPerHourLimit\s*=\s*(\d+)/)[1];
+  const writes = go.match(/grokWriteLimit\s*=\s*(\d+)/)[1];
+  const readme = read('README.md');
+  assert.match(readme, new RegExp(`\\*\\*${minute}\\*\\*/minute`));
+  assert.match(readme, new RegExp(`\\*\\*${hour}\\*\\*/hour`));
+  assert.match(readme, new RegExp(`\\*\\*${writes}\\*\\*/minute`));
+});

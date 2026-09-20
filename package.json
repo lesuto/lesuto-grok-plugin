@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test test.mjs"
+    "test": "node --test --test-concurrency=1 graphql.test.mjs protocol.test.mjs tools-contract.test.mjs public-contract.test.mjs denied-ops.test.mjs"
   },
   "engines": {
     "node": ">=20"

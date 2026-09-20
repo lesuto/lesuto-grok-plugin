@@ -1,0 +1,17 @@
+{
+  "name": "@lesuto/grok-plugin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lesuto Grok MCP: channel-scoped admin GraphQL plus Lesuto Connect tools.",
+  "type": "module",
+  "bin": {
+    "lesuto-grok": "./server.mjs"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

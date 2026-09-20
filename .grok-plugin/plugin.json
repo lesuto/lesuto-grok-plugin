@@ -1,0 +1,14 @@
+{
+  "name": "lesuto",
+  "version": "1.0.0",
+  "description": "Ask Grok how last 30 days looked. Send a Connect invite. Check stock. Same Lesuto channel admin you already run.",
+  "author": {
+    "name": "Lesuto Technologies",
+    "url": "https://www.lesuto.com"
+  },
+  "repository": "https://github.com/lesuto/lesuto-grok-plugin",
+  "homepage": "https://www.lesuto.com/integrations/grok-agent",
+  "license": "MIT",
+  "keywords": ["lesuto", "lesuto connect", "lesuto hub", "lesuto seller"],
+  "icon": "assets/lesuto-mark.png"
+}

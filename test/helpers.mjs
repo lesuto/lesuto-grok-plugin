@@ -1,7 +1,29 @@
-import { dirname, join } from 'node:path';
+import { readdirSync, statSync } from 'node:fs';
+import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const pluginRoot = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
+
+const SKIP_DIRS = new Set(['node_modules', '.git']);
+const BINARY_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.woff', '.woff2', '.ttf', '.eot']);
+
+export function walkPluginFiles(root = pluginRoot) {
+  const files = [];
+  const visit = (dir) => {
+    for (const name of readdirSync(dir)) {
+      if (SKIP_DIRS.has(name)) continue;
+      const p = join(dir, name);
+      if (statSync(p).isDirectory()) visit(p);
+      else files.push(p);
+    }
+  };
+  visit(root);
+  return files;
+}
+
+export function isBinaryPluginFile(path) {
+  return BINARY_EXT.has(extname(path).toLowerCase());
+}
 
 export function fixture(rel) {
   return join(pluginRoot, rel);

@@ -11,7 +11,8 @@ test('plugin sources never hardcode the admin API host', () => {
     const src = read(rel);
     assert.equal(src.includes('https://admin.lesuto.com'), false, rel);
   }
-  assert.match(read('server.mjs'), /never admin\.lesuto\.com/);
+  assert.match(read('server.mjs'), /Always api\.lesuto\.com/);
+  assert.equal(read('server.mjs').includes('admin.lesuto.com'), false);
   assert.match(read('lib/graphql.mjs'), /api\.lesuto\.com/);
 });
 
@@ -55,6 +56,15 @@ test('Grok plugin.json has homepage, license, icon, and brand keywords', () => {
   assert.equal(manifest.icon, 'assets/lesuto-mark.png');
   assert.ok(manifest.keywords.includes('lesuto'));
   assert.ok(existsSync(join(pluginRoot, 'assets/lesuto-mark.png')));
+  assert.equal(existsSync(join(pluginRoot, 'assets/lesuto-wordmark.svg')), false);
+  assert.ok(existsSync(join(pluginRoot, 'assets/lesuto-wordmark.png')));
+  const mark = readFileSync(join(pluginRoot, 'assets/lesuto-mark.png'));
+  const wordmark = readFileSync(join(pluginRoot, 'assets/lesuto-wordmark.png'));
+  assert.equal(mark.readUInt32BE(16), 256);
+  assert.equal(mark.readUInt32BE(20), 256);
+  assert.equal(wordmark.readUInt32BE(16), 1024);
+  assert.equal(wordmark.readUInt32BE(20), 1024);
+  assert.ok(mark.byteLength < 40_000, 'plugin icon should be the sharp 256 handshake, not the old blurry 378KB file');
   assert.ok(existsSync(join(pluginRoot, 'LICENSE')));
   assert.match(read('LICENSE'), /Lesuto Technologies/);
 });
@@ -84,8 +94,21 @@ test('marketplace packet pins a 40-char SHA and the public repo', () => {
   const doc = read('docs/grok-marketplace-submission.md');
   assert.match(doc, /github\.com\/lesuto\/lesuto-grok-plugin/);
   assert.match(doc, /xai-org\/plugin-marketplace/);
+  assert.match(doc, /plugin-marketplace\/pull\/828/);
+  assert.match(doc, /publish-lesuto-grok-plugin\.yml/);
   assert.match(doc, /"sha": "[a-f0-9]{40}"/);
   assert.match(doc, /Code-owner review is required/);
+});
+
+test('monorepo publish workflow mirrors plugin changes to the public repo', () => {
+  const wf = join(pluginRoot, '../.github/workflows/publish-lesuto-grok-plugin.yml');
+  if (!existsSync(wf)) return;
+  const yaml = readFileSync(wf, 'utf8');
+  assert.match(yaml, /lesuto-grok-plugin\/\*\*/);
+  assert.match(yaml, /publish-lesuto-grok-plugin\.sh/);
+  assert.match(yaml, /LESUTO_GROK_PLUGIN_DEPLOY_KEY/);
+  assert.match(yaml, /environment: grok-plugin/);
+  assert.match(yaml, /branches: \[develop\]/);
 });
 
 test('README rate limits match the gateway constants', () => {

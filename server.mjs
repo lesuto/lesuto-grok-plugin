@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Lesuto merchant Grok MCP (stdio JSON-RPC).
- * Auth: LESUTO_AGENT_KEY + LESUTO_CHANNEL_TOKEN. Always api.lesuto.com, never admin.lesuto.com.
+ * Auth: LESUTO_AGENT_KEY + LESUTO_CHANNEL_TOKEN. Always api.lesuto.com.
  */
 import { createInterface } from 'node:readline';
 import { stdin, stdout, stderr } from 'node:process';
@@ -61,7 +61,7 @@ function initializeResult() {
   return {
     protocolVersion: PROTOCOL,
     capabilities: { tools: { listChanged: false } },
-    serverInfo: { name: 'lesuto-grok', version: '1.3.0' },
+    serverInfo: { name: 'lesuto-grok', version: '1.3.1' },
     instructions:
       'You are acting as this merchant or supplier on their Lesuto stores. Start with account_overview for the big picture across every store on this key. Call list_organizations and org_overview when they ask about a company umbrella. Call use_store with L1 or the store name when the question is about one store. Use named tools for bookings, orders, catalog, analytics, Hub, blog, shipping, and site status. Destructive tools require confirm true. Always call api.lesuto.com.',
   };

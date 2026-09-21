@@ -1,6 +1,6 @@
 {
   "name": "@lesuto/grok-plugin",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "private": true,
   "description": "Lesuto Grok MCP: ask how all your stores are doing, then drill into one.",
   "type": "module",
@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test --test-concurrency=1 graphql.test.mjs protocol.test.mjs tools-contract.test.mjs public-contract.test.mjs denied-ops.test.mjs stores.test.mjs"
+    "test": "node --test --test-concurrency=1 graphql.test.mjs protocol.test.mjs tools-contract.test.mjs public-contract.test.mjs public-leak.test.mjs denied-ops.test.mjs stores.test.mjs"
   },
   "engines": {
     "node": ">=20"

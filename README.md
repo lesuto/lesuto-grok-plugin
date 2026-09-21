@@ -1,7 +1,7 @@
 # Lesuto Grok plugin
 
 <p align="center">
-  <img src="assets/lesuto-mark.png" alt="Lesuto chameleon mark" width="120" />
+  <img src="assets/lesuto-mark.png" alt="Lesuto handshake mark" width="120" />
 </p>
 
 <p align="center"><strong>Ask how all your stores are doing. Drill into one when you need to.</strong></p>

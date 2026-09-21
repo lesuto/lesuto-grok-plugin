@@ -2,7 +2,11 @@
 
 This is the packet for a PR against [xai-org/plugin-marketplace](https://github.com/xai-org/plugin-marketplace).
 
+Open listing PR: [xai-org/plugin-marketplace#828](https://github.com/xai-org/plugin-marketplace/pull/828) (Add Lesuto Grok plugin). CI is green. Waiting on xAI code-owner review. It is not in `/marketplace` until that PR merges.
+
 Public source (Grok clones this SHA): https://github.com/lesuto/lesuto-grok-plugin
+
+Plugin file changes in Lesuto-Chameleon publish to that public repo via `.github/workflows/publish-lesuto-grok-plugin.yml` (push to `develop` when `lesuto-grok-plugin/` changes, or Actions → Publish Lesuto Grok Plugin). Local: `./scripts/publish-lesuto-grok-plugin.sh`.
 
 ## Catalog entry
 
@@ -20,7 +24,7 @@ git ls-remote https://github.com/lesuto/lesuto-grok-plugin.git HEAD
   "source": {
     "source": "url",
     "url": "https://github.com/lesuto/lesuto-grok-plugin.git",
-    "sha": "cf5a07a2ff8d20414548bd1499f76ca56dcf0cee"
+    "sha": "df301b1d57e0ecf6e2cfacff7e2e662e91aa9087"
   },
   "homepage": "https://www.lesuto.com/integrations/grok-agent",
   "keywords": ["lesuto", "lesuto connect", "lesuto hub", "lesuto seller"],
@@ -28,7 +32,7 @@ git ls-remote https://github.com/lesuto/lesuto-grok-plugin.git HEAD
 }
 ```
 
-Replace the `sha` with `git ls-remote https://github.com/lesuto/lesuto-grok-plugin.git HEAD` immediately before the xAI PR. Public HEAD when this packet was written: `cf5a07a2ff8d20414548bd1499f76ca56dcf0cee`. Not a branch. Not a tag.
+Replace the `sha` with `git ls-remote https://github.com/lesuto/lesuto-grok-plugin.git HEAD` immediately before the xAI PR. Public HEAD when this packet was written: `df301b1d57e0ecf6e2cfacff7e2e662e91aa9087`. Not a branch. Not a tag.
 
 ## After forking xai-org/plugin-marketplace
 
@@ -38,4 +42,4 @@ Replace the `sha` with `git ls-remote https://github.com/lesuto/lesuto-grok-plug
 4. `python3 scripts/generate-plugin-index.py --check`
 5. Open the PR. Code-owner review is required.
 
-To ship a plugin update later: run `scripts/publish-lesuto-grok-plugin.sh` in Lesuto-Chameleon, then bump the `sha` in a new xAI PR. Do not add a second catalog name.
+To ship a plugin update later: let the publish workflow (or `scripts/publish-lesuto-grok-plugin.sh`) push the public mirror, then bump the catalog `sha`. If PR 828 is still open, update that PR. After it merges, open a new xAI PR that only changes `sha` and regenerates `.grok-plugin/plugin-index.json`. Do not add a second catalog name.

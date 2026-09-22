@@ -19,17 +19,16 @@ const PROTOCOL = '2024-11-05';
 const TOOLS = [
   {
     name: 'lesuto_graphql',
-    description: 'Run a Lesuto admin GraphQL query or mutation as this channel administrator. Destructive mutations require confirm true. Never mint agent keys, never call CRM staff ops.',
+    description: 'Run a Lesuto admin GraphQL query as this store. Reads only. Use named tools for Connect invites, blog, Hub posts, stock, and shipping labels.',
     inputSchema: {
       type: 'object',
       properties: {
         query: { type: 'string' },
         variables: { type: 'object' },
-        confirm: { type: 'boolean' },
       },
       required: ['query'],
     },
-    execute: (args) => adminGraphql(String(args.query || ''), args.variables || {}, args),
+    execute: (args) => adminGraphql(String(args.query || ''), args.variables || {}),
   },
   ...connectTools,
   ...commerceTools,
@@ -61,9 +60,9 @@ function initializeResult() {
   return {
     protocolVersion: PROTOCOL,
     capabilities: { tools: { listChanged: false } },
-    serverInfo: { name: 'lesuto-grok', version: '1.3.1' },
+    serverInfo: { name: 'lesuto-grok', version: '1.6.0' },
     instructions:
-      'You are acting as this merchant or supplier on their Lesuto stores. Start with account_overview for the big picture across every store on this key. Call list_organizations and org_overview when they ask about a company umbrella. Call use_store with L1 or the store name when the question is about one store. Use named tools for bookings, orders, catalog, analytics, Hub, blog, shipping, and site status. Destructive tools require confirm true. Always call api.lesuto.com.',
+      "You are acting as this merchant or supplier on their Lesuto stores. Start with account_overview for the big picture across every store on this key. creditBalance on each store is that store's integration credits. Call list_organizations and org_overview when they ask about a company umbrella. org_overview rolls up revenue and orders. Call use_store with L1 or the store name when the question is about one store. Use named tools for bookings, orders, catalog, analytics, Hub, blog, stock, and shipping. lesuto_graphql is queries only. The key cannot change prices, refunds, team, company membership, or billing. Always call api.lesuto.com.",
   };
 }
 

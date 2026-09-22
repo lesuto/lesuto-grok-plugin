@@ -1,5 +1,4 @@
 import { adminGraphql } from '../lib/graphql.mjs';
-import { requireConfirm } from '../lib/denied-ops.mjs';
 
 const POST_FIELDS = `id slug title excerpt status author tags featuredImageUrl publishedAt createdAt articleType articleLayout`;
 const POST_DETAIL = `${POST_FIELDS} body seoTitle seoDescription`;
@@ -62,7 +61,7 @@ export const blogTools = [
   },
   {
     name: 'blog_create',
-    description: 'Create a channel blog post in Command Center. Defaults to draft. Set publish true to publish immediately. Body must be magazine HTML: figure.lsu-media.lsu-media-product for product photos, figure.lsu-media.lsu-media-shot for UI, and a two-link CTA. articleLayout is playbook, aisle, explainer, feature, essay, or split. Do not ask image models to paint LESUTO or titles.',
+    description: 'Create a channel blog post in Command Center. Requires a Content or All jobs key. Defaults to draft. Set publish true to publish immediately. Body must be magazine HTML: figure.lsu-media.lsu-media-product for product photos, figure.lsu-media.lsu-media-shot for UI, and a two-link CTA. articleLayout is playbook, aisle, explainer, feature, essay, or split. Do not ask image models to paint LESUTO or titles.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -85,19 +84,21 @@ export const blogTools = [
       const created = await adminGraphql(
         `mutation ChannelBlogCreatePost($input: AiBlogPostInput!) { channelBlogCreatePost(input: $input) { ${POST_FIELDS} } }`,
         { input: postInput(args) },
+        { allowWrite: true },
       );
       const post = created.channelBlogCreatePost;
       if (!args.publish) return created;
       const published = await adminGraphql(
         `mutation AiBlogPublishPost($id: ID!) { aiBlogPublishPost(id: $id) { ${POST_FIELDS} } }`,
         { id: post.id },
+        { allowWrite: true },
       );
       return published;
     },
   },
   {
     name: 'blog_update',
-    description: 'Update a Command Center blog post by id. Pass only fields to change.',
+    description: 'Update a Command Center blog post by id. Requires a Content or All jobs key. Pass only fields to change.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -125,12 +126,13 @@ export const blogTools = [
       return adminGraphql(
         `mutation AiBlogUpdatePost($id: ID!, $input: AiBlogUpdateInput!) { aiBlogUpdatePost(id: $id, input: $input) { ${POST_DETAIL} } }`,
         { id: String(args.id), input },
+        { allowWrite: true },
       );
     },
   },
   {
     name: 'blog_publish',
-    description: 'Publish a Command Center blog post so it appears on the store blog feed.',
+    description: 'Publish a Command Center blog post so it appears on the store blog feed. Requires a Content or All jobs key.',
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string' } },
@@ -139,11 +141,12 @@ export const blogTools = [
     execute: (args) => adminGraphql(
       `mutation AiBlogPublishPost($id: ID!) { aiBlogPublishPost(id: $id) { ${POST_FIELDS} } }`,
       { id: String(args.id) },
+      { allowWrite: true },
     ),
   },
   {
     name: 'blog_unpublish',
-    description: 'Revert a Command Center blog post to draft.',
+    description: 'Revert a Command Center blog post to draft. Requires a Content or All jobs key.',
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string' } },
@@ -152,26 +155,7 @@ export const blogTools = [
     execute: (args) => adminGraphql(
       `mutation AiBlogUnpublishPost($id: ID!) { aiBlogUnpublishPost(id: $id) { ${POST_FIELDS} } }`,
       { id: String(args.id) },
+      { allowWrite: true },
     ),
-  },
-  {
-    name: 'blog_delete',
-    description: 'Permanently delete a Command Center blog post. Requires confirm true.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string' },
-        confirm: { type: 'boolean' },
-      },
-      required: ['id'],
-    },
-    destructiveHint: true,
-    execute: (args) => {
-      requireConfirm(args, 'blog delete');
-      return adminGraphql(
-        `mutation AiBlogDeletePost($id: ID!) { aiBlogDeletePost(id: $id) }`,
-        { id: String(args.id) },
-      );
-    },
   },
 ];

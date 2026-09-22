@@ -6,6 +6,7 @@ description: Search and inspect this channel catalog on Lesuto Seller. Use for l
 # Lesuto catalog
 
 - Use `search_catalog` for product lookup.
+- Use `inventory_stock` to read stock on hand.
+- Use `adjust_variant_stock` to set stock. That does not change price.
 - Use `store_status` to confirm which administrator and channel you are acting as.
-- Catalog writes go through `lesuto_graphql` after the merchant confirms.
 - Stay on this channel. Do not try other-channel IDs or platform staff operations.

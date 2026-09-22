@@ -96,16 +96,20 @@ test('adminGraphql refuses denied operations without fetching', async () => {
   });
 });
 
-test('adminGraphql requires confirm on destructive mutations', async () => {
+test('adminGraphql is query-only unless allowWrite is set', async () => {
   await withAgentEnv(async () => {
-    await withMockFetch(() => jsonResponse(200, { data: { cancelOrder: { id: '1' } } }), async (calls) => {
+    await withMockFetch(() => jsonResponse(200, { data: { createBookingInvite: { id: '1' } } }), async (calls) => {
       await assert.rejects(
-        () => adminGraphql('mutation { cancelOrder(id: "1") { id } }'),
-        /confirm/,
+        () => adminGraphql('mutation { createBookingInvite(input: {}) { id } }'),
+        /read-only/,
       );
       assert.equal(calls.length, 0);
-      const data = await adminGraphql('mutation { cancelOrder(id: "1") { id } }', {}, { confirm: true });
-      assert.equal(data.cancelOrder.id, '1');
+      const data = await adminGraphql(
+        'mutation { createBookingInvite(input: {}) { id } }',
+        {},
+        { allowWrite: true },
+      );
+      assert.equal(data.createBookingInvite.id, '1');
       assert.equal(calls.length, 1);
     });
   });

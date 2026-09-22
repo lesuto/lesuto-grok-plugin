@@ -24,15 +24,19 @@ Arron Hyman is Founder and CEO, based in Austin, Texas. The motto is **Let's Suc
 
 Grok acts as **you** on the stores that key covers. Start with the big picture, then drill in:
 
-- `account_overview`: revenue, orders, average order value, payouts, growth per store, leftover credits. No store switch needed.
-- `list_organizations` and `org_overview`: company umbrellas, then revenue and orders for one company
+- `account_overview`: revenue, orders, average order value, payouts, growth per store, and that store's own leftover credits. No store switch needed.
+- `list_organizations` and `org_overview`: company umbrellas, then revenue and orders for one company. Credits stay on each store.
 - Last 7 / 30 / 90 days and year on one store: revenue, orders, average order value, commission, what sold
 - Lesuto Connect: meeting types, invite links, upcoming bookings, complete or no-show
 - Catalog search, stock on hand, shipping labels
+- Set stock on hand without changing price
+- Buy a shipping label after you confirm
 - Hub store status, site status, posts
 - Store blog: draft, update, publish
 - `list_stores` and `use_store` when you want one merchant or supplier store (L1, L2, or the store name)
-- `lesuto_graphql` for the rest of the scope you picked
+- `lesuto_graphql` for extra reads. Writes go through named tools.
+
+Jobs: **Read**, **Connect**, **Content**, **Fulfillment**, or **All jobs** (Connect, Content, and Fulfillment on one secret). Docs: [AI Agent Access](https://docs.lesuto.com/docs/integrations/ai-agent-access).
 
 Public guests still book on your Connect page. Grok creates invite links. Pass a guest email only when you asked to send the invite.
 
@@ -48,11 +52,19 @@ Mint from Command Center or Lesuto Seller:
 
 Details: [AI Agent Access docs](https://docs.lesuto.com/docs/integrations/ai-agent-access).
 
+## Credits stay on each store
+
+`account_overview` includes `creditBalance` on every store. That number is that store's integration credits. `org_overview` adds up revenue and orders for the company. Asking about one store spends that store's credits: **1** for a read, **2** for a write. `account_overview` itself is one read.
+
+You can put a store on a key when you can operate it: Owner, Store Manager, or AI Agent Access on that store. A company invite shows the rollup. If Agent Access is removed, the key stops covering that store on the next question. The other stores on the key keep working.
+
+The key cannot change team, company membership, or billing. Those stay in Command Center.
+
 ## Benefits
 
 - Ask how the whole account did, then open the store that needs attention
 - Send a Connect invite after a consult
-- Confirm the SKU and stock before you patch a listing
+- Confirm the SKU and stock. Fulfillment keys can set stock on hand without changing price.
 - Read recent orders and tracking
 - Rotate or revoke the key from Command Center when someone leaves
 
@@ -69,11 +81,12 @@ Details: [AI Agent Access docs](https://docs.lesuto.com/docs/integrations/ai-age
 
 ## Mint the key
 
-1. Create a key. Pick a tier: this store, one organization, or everything you manage. Then pick a ceiling scope, and a scope per store if you are on the channel tier:
+1. Create a key. Pick a tier: this store, one organization, or everything you manage. Then pick a job, and Read on a store if you want a tighter ceiling:
+   - **Read**: answers questions
    - **Connect**: bookings and invite links
-   - **Orders Read**: orders and the sales dashboard, including account overview
-   - **Catalog Read**: products and stock
-   - **Full**: the same admin work you already do on that store, including ads
+   - **Content**: store blog and Hub posts
+   - **Fulfillment**: stock on hand and shipping labels
+   - **All jobs**: Connect, Content, and Fulfillment on one secret
 2. Default expiry is 90 days (max 365).
 3. Click **Copy MCP env** once. The secret is shown at create time. If you lose it, rotate.
 
@@ -146,7 +159,7 @@ Store the key in Grok or Cursor plugin settings. Rotate when someone leaves. Rev
 
 Reads cost **1** integration credit. Writes cost **2**. `account_overview` is one read, no matter how many stores sit on the key. Exhausted credits return HTTP 402. Gateway rate limits per key: **60**/minute, **600**/hour, writes also **20**/minute.
 
-Network: this process only calls `https://api.lesuto.com/api/v3/admin/graphql` (stdio MCP, no install scripts, no remote shell). Destructive GraphQL and cancel/complete/no-show tools require `confirm: true`.
+Network: this process only calls `https://api.lesuto.com/api/v3/admin/graphql` (stdio MCP, no install scripts, no remote shell). `lesuto_graphql` is queries only. Cancel/complete/no-show and buying a shipping label require `confirm: true`.
 
 ## Tests
 

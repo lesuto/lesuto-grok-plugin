@@ -10,14 +10,14 @@ const STORES = [
     channelToken: 'merchant_north_admin',
     channelCode: 'merchant_north',
     channelName: 'North Shop',
-    scope: 'full',
+    scope: 'fulfillment',
   },
   {
     alias: 'L2',
     channelToken: 'supplier_south_admin',
     channelCode: 'supplier_south',
     channelName: 'South Supply',
-    scope: 'catalog-read',
+    scope: 'read',
   },
 ];
 
@@ -39,7 +39,7 @@ test('list_stores and use_store switch sticky store for later calls', async () =
       assert.equal(listed.stores.length, 2);
       const switched = await use.execute({ store: 'L2' });
       assert.equal(switched.active, 'L2');
-      assert.equal(switched.scope, 'catalog-read');
+      assert.equal(switched.scope, 'read');
       const later = await handle({
         jsonrpc: '2.0',
         id: 21,

@@ -20,6 +20,22 @@ test('denies staff CRM and key minting field names', () => {
   assert.equal(deniedOp('orders'), false);
   assert.equal(deniedOp('dashboardAnalytics'), false);
   assert.equal(deniedOp('me'), false);
+  assert.equal(deniedOp('upsertTeamMember'), true);
+  assert.equal(deniedOp('purchaseIntegrationCredits'), true);
+  assert.equal(deniedOp('organizationOverview'), false);
+  assert.equal(deniedOp('myOrganizations'), false);
+  assert.equal(deniedOp('updateProduct'), true);
+  assert.equal(deniedOp('updateProductVariants'), true);
+  assert.equal(deniedOp('refundOrder'), true);
+  assert.equal(deniedOp('cancelOrder'), true);
+  assert.equal(deniedOp('updateMerchantProfile'), true);
+  assert.equal(deniedOp('aiBlogDeletePost'), true);
+  assert.equal(deniedOp('deleteStorePost'), true);
+  assert.equal(deniedOp('adjustVariantStock'), false);
+  assert.equal(deniedOp('createShipmentForOrder'), false);
+  assert.equal(deniedOp('buyShippingLabel'), false);
+  assert.equal(deniedOp('channelBlogCreatePost'), false);
+  assert.equal(deniedOp('createStorePost'), false);
 });
 
 test('extractFields skips GraphQL keywords', () => {

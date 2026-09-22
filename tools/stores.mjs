@@ -69,7 +69,7 @@ export const storeTools = [
   },
   {
     name: 'account_overview',
-    description: 'Get a revenue and orders overview across all stores on this key. No use_store needed. Period is 7d, 30d, 90d, or 1y.',
+    description: 'Revenue, orders, payouts, and each store creditBalance across every store on this key. Each balance belongs to that store. No use_store needed. Period is 7d, 30d, 90d, or 1y.',
     inputSchema: {
       type: 'object',
       properties: { period: { type: 'string', description: '7d, 30d, 90d, or 1y' } },

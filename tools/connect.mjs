@@ -10,7 +10,7 @@ export const connectTools = [
   },
   {
     name: 'create_booking_invite',
-    description: 'Create a Lesuto Connect invite link. Pass guestEmail only when the merchant asked to email the guest.',
+    description: 'Create a Lesuto Connect invite link. Requires a Connect or All jobs key. Pass guestEmail only when the merchant asked to email the guest.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -35,6 +35,7 @@ export const connectTools = [
           expiresInHours: args.expiresInHours || null,
         },
       },
+      { allowWrite: true },
     ),
   },
   {
@@ -51,7 +52,7 @@ export const connectTools = [
   },
   {
     name: 'cancel_booking',
-    description: 'Cancel a Lesuto Connect booking. Destructive: requires confirm true.',
+    description: 'Cancel a Lesuto Connect booking. Requires a Connect or All jobs key. Destructive: requires confirm true.',
     destructiveHint: true,
     inputSchema: {
       type: 'object',
@@ -63,12 +64,13 @@ export const connectTools = [
       return adminGraphql(
         `mutation CancelBooking($id: ID!, $r: String) { cancelBooking(id: $id, reason: $r) { id status } }`,
         { id: args.id, r: args.reason || null },
+        { allowWrite: true },
       );
     },
   },
   {
     name: 'complete_booking',
-    description: 'Mark a Lesuto Connect booking completed. Destructive: requires confirm true.',
+    description: 'Mark a Lesuto Connect booking completed. Requires a Connect or All jobs key. Destructive: requires confirm true.',
     destructiveHint: true,
     inputSchema: {
       type: 'object',
@@ -80,12 +82,13 @@ export const connectTools = [
       return adminGraphql(
         `mutation CompleteBooking($id: ID!) { markBookingCompleted(id: $id) { id status } }`,
         { id: args.id },
+        { allowWrite: true },
       );
     },
   },
   {
     name: 'no_show_booking',
-    description: 'Mark a Lesuto Connect booking as no-show. Destructive: requires confirm true.',
+    description: 'Mark a Lesuto Connect booking as no-show. Requires a Connect or All jobs key. Destructive: requires confirm true.',
     destructiveHint: true,
     inputSchema: {
       type: 'object',
@@ -97,6 +100,7 @@ export const connectTools = [
       return adminGraphql(
         `mutation NoShowBooking($id: ID!) { markBookingNoShow(id: $id) { id status } }`,
         { id: args.id },
+        { allowWrite: true },
       );
     },
   },

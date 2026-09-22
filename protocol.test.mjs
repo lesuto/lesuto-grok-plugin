@@ -8,13 +8,14 @@ const EXPECTED_TOOLS = [
   'list_meeting_types', 'create_booking_invite', 'list_upcoming_bookings',
   'cancel_booking', 'complete_booking', 'no_show_booking',
   'orders_snapshot', 'search_catalog', 'inventory_stock', 'channel_analytics', 'shipping_labels',
-  'store_status', 'site_status', 'hub_posts',
-  'blog_list', 'blog_get', 'blog_create', 'blog_update', 'blog_publish', 'blog_unpublish', 'blog_delete',
+  'adjust_variant_stock', 'create_shipment', 'buy_shipping_label',
+  'store_status', 'site_status', 'hub_posts', 'hub_create_post', 'hub_update_post',
+  'blog_list', 'blog_get', 'blog_create', 'blog_update', 'blog_publish', 'blog_unpublish',
   'list_stores', 'use_store', 'account_overview',
   'list_organizations', 'org_overview',
 ];
 
-const DESTRUCTIVE_TOOLS = ['cancel_booking', 'complete_booking', 'no_show_booking', 'blog_delete'];
+const DESTRUCTIVE_TOOLS = ['cancel_booking', 'complete_booking', 'no_show_booking', 'buy_shipping_label'];
 
 test('initialize handshake names lesuto-grok', async () => {
   const res = await handle({ jsonrpc: '2.0', id: 0, method: 'initialize' });
@@ -93,33 +94,21 @@ test('lesuto_graphql refuses key minting without fetching', async () => {
   });
 });
 
-test('lesuto_graphql destructive mutation requires confirm', async () => {
+test('lesuto_graphql refuses mutations without fetching', async () => {
   await withAgentEnv(async () => {
-    await withMockFetch(() => jsonResponse(200, { data: { ok: true } }), async (calls) => {
+    await withMockFetch(() => jsonResponse(200, { data: {} }), async (calls) => {
       const denied = await handle({
         jsonrpc: '2.0',
         id: 5,
         method: 'tools/call',
         params: {
           name: 'lesuto_graphql',
-          arguments: { query: 'mutation { refundOrder(id: "1") { id } }' },
+          arguments: { query: 'mutation { createBookingInvite(input: {}) { id } }' },
         },
       });
       assert.equal(denied.result.isError, true);
-      assert.match(denied.result.content[0].text, /confirm/);
+      assert.match(denied.result.content[0].text, /read-only/);
       assert.equal(calls.length, 0);
-
-      const ok = await handle({
-        jsonrpc: '2.0',
-        id: 6,
-        method: 'tools/call',
-        params: {
-          name: 'lesuto_graphql',
-          arguments: { query: 'mutation { refundOrder(id: "1") { id } }', confirm: true },
-        },
-      });
-      assert.equal(ok.result.isError, undefined);
-      assert.equal(calls.length, 1);
     });
   });
 });

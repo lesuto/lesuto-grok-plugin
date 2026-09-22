@@ -2,7 +2,7 @@
 
 This is the packet for a PR against [xai-org/plugin-marketplace](https://github.com/xai-org/plugin-marketplace).
 
-Open listing PR: [xai-org/plugin-marketplace#828](https://github.com/xai-org/plugin-marketplace/pull/828) (Add Lesuto Grok plugin). CI is green. Waiting on xAI code-owner review. It is not in `/marketplace` until that PR merges.
+Open listing PR: [xai-org/plugin-marketplace#828](https://github.com/xai-org/plugin-marketplace/pull/828) (Add Lesuto Grok plugin). As of 2026-09-22 the PR is still **open**. Review was requested. It has not merged, so Lesuto is not in `/marketplace` yet. Plugin version **1.6.0** adds **All jobs** (Connect, Content, and Fulfillment on one secret). GraphQL stays queries only; named tools handle writes.
 
 Public source (Grok clones this SHA): https://github.com/lesuto/lesuto-grok-plugin
 

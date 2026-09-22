@@ -25,7 +25,7 @@ export const orgTools = [
   },
   {
     name: 'org_overview',
-    description: 'Roll up revenue, orders, average order value, active channels, and return rate for one organization. period is 7d, 30d, 90d, 1y, or ytd. Pass includeChildOrgs true to include nested companies.',
+    description: 'Roll up revenue, orders, average order value, active businesses, and return rate for one organization. Credits stay on each store. period is 7d, 30d, 90d, 1y, or ytd. Pass includeChildOrgs true to include nested companies.',
     inputSchema: {
       type: 'object',
       properties: {

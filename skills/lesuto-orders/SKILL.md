@@ -7,6 +7,7 @@ description: Read and manage orders on this Lesuto Seller channel. Use for lesut
 
 - Start with `orders_snapshot` for recent orders.
 - Use `channel_analytics` for revenue, order count, average order value, commission, and top products (`7d`, `30d`, `90d`, or `1y`).
-- For updates (tracking, status), use `lesuto_graphql` and confirm the write with the merchant first.
-- You can only do what this administrator can already do in Lesuto Seller / Command Center on this channel.
+- Use `shipping_labels` to read tracking.
+- Use `create_shipment` then `buy_shipping_label` (confirm true) to buy postage. That spends money.
+- Never refund, cancel, or change prices from Grok.
 - Never mint or revoke agent keys from Grok.

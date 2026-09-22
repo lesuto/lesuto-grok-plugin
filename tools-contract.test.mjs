@@ -155,6 +155,10 @@ test('org_overview coerces unknown periods to 30d', async () => {
   });
 });
 
+test('blog_delete is not a tool', () => {
+  assert.equal(TOOLS.some((t) => t.name === 'blog_delete'), false);
+});
+
 test('skills cover Connect, catalog, orders, analytics, and organizations', () => {
   const dir = join(pluginRoot, 'skills');
   const names = readdirSync(dir);

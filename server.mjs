@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Lesuto merchant Grok MCP (stdio JSON-RPC).
- * Auth: LESUTO_AGENT_KEY + LESUTO_CHANNEL_TOKEN. Always api.lesuto.com.
+ * Auth: LESUTO_AGENT_KEY. Optional LESUTO_CHANNEL_TOKEN as a default store. Always api.lesuto.com.
  */
 import { createInterface } from 'node:readline';
 import { stdin, stdout, stderr } from 'node:process';

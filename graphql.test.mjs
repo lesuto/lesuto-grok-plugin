@@ -48,10 +48,34 @@ test('adminGraphql requires the agent key before fetch', async () => {
     await withEnv({ LESUTO_AGENT_KEY: undefined, LESUTO_CHANNEL_TOKEN: undefined }, async () => {
       await assert.rejects(() => adminGraphql('query { me { id } }'), /LESUTO_AGENT_KEY/);
     });
-    await withEnv({ LESUTO_AGENT_KEY: 'lsk_test_x', LESUTO_CHANNEL_TOKEN: undefined }, async () => {
-      await assert.rejects(() => adminGraphql('query { me { id } }'), /LESUTO_CHANNEL_TOKEN|list_stores/);
-    });
     assert.equal(calls.length, 0);
+  });
+});
+
+test('adminGraphql store-scoped calls need a store hint', async () => {
+  await withEnv({ LESUTO_AGENT_KEY: 'lsk_test_x', LESUTO_CHANNEL_TOKEN: undefined }, async () => {
+    await withMockFetch(() => {
+      throw new Error('fetch should not run');
+    }, async (calls) => {
+      await assert.rejects(() => adminGraphql('query { me { id } }'), /list_stores then use_store/);
+      assert.equal(calls.length, 0);
+    });
+  });
+});
+
+test('adminGraphql can call storeless ops without LESUTO_CHANNEL_TOKEN', async () => {
+  await withEnv({ LESUTO_AGENT_KEY: 'lsk_test_x', LESUTO_CHANNEL_TOKEN: undefined }, async () => {
+    await withMockFetch((_url, init) => {
+      const headers = init.headers;
+      assert.equal(headers['X-Lesuto-Agent-Key'], 'lsk_test_x');
+      assert.equal(headers['vendure-token'], undefined);
+      assert.equal(headers['X-Store'], undefined);
+      return jsonResponse(200, { data: { accessibleStores: [] } });
+    }, async (calls) => {
+      const data = await adminGraphql('query { accessibleStores { alias } }', {}, { requireStore: false });
+      assert.deepEqual(data, { accessibleStores: [] });
+      assert.equal(calls.length, 1);
+    });
   });
 });
 

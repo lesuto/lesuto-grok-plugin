@@ -18,6 +18,13 @@ test('every tool has execute, schema, and a unique name', () => {
   }
 });
 
+test('org and store rollup tools skip the channel token', () => {
+  const org = readFileSync(join(pluginRoot, 'tools/org.mjs'), 'utf8');
+  const stores = readFileSync(join(pluginRoot, 'tools/stores.mjs'), 'utf8');
+  assert.equal((org.match(/requireStore: false/g) || []).length, 2);
+  assert.equal((stores.match(/requireStore: false/g) || []).length, 3);
+});
+
 test('tool GraphQL operations are not on the merchant denylist', () => {
   for (const rel of ['tools/connect.mjs', 'tools/commerce.mjs', 'tools/hub.mjs', 'tools/blog.mjs', 'tools/stores.mjs', 'tools/org.mjs']) {
     const src = readFileSync(join(pluginRoot, rel), 'utf8');

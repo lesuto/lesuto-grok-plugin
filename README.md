@@ -115,10 +115,17 @@ Put these in Grok plugin / MCP secrets. Do not paste the key into a Grok convers
 ```
 LESUTO_API_URL=https://api.lesuto.com
 LESUTO_AGENT_KEY=lsk_live_…
-LESUTO_CHANNEL_TOKEN=merchant_your-slug_admin
 ```
 
-`LESUTO_CHANNEL_TOKEN` is the same token Seller uses for that store. It is optional when the key covers more than one store: call `account_overview` first, then `use_store` with `L1` or the store name when you need one store. `LESUTO_API_URL` is optional. When set, it must be `https://api.lesuto.com` (or `https://staging-api.lesuto.com` for Lesuto staging).
+`LESUTO_API_URL` is optional. When set, it must be `https://api.lesuto.com` (or `https://staging-api.lesuto.com` for Lesuto staging).
+
+For a company or frozen-list key, the agent key is enough. Call `list_stores` then `use_store` with L1 or the store name when a tool needs one store.
+
+Optional default store (Teams keys, or a favorite store on an org key):
+
+```
+LESUTO_CHANNEL_TOKEN=merchant_your-slug_admin
+```
 
 ## First prompts
 

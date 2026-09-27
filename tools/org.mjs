@@ -21,6 +21,8 @@ export const orgTools = [
     inputSchema: { type: 'object', properties: {} },
     execute: () => adminGraphql(
       `query ListOrganizations { myOrganizations { id name code role channelCount memberCount parentOrganizationId } }`,
+      {},
+      { requireStore: false },
     ),
   },
   {
@@ -60,6 +62,7 @@ export const orgTools = [
             includeChildOrgs: args.includeChildOrgs === true ? true : undefined,
           },
         },
+        { requireStore: false },
       );
     },
   },

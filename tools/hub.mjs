@@ -72,6 +72,32 @@ export const hubTools = [
     },
   },
   {
+    name: 'hub_create_scene',
+    description: 'Create a shoppable Hub scene (reel). Requires a Content or All jobs key. The key owner must have accepted the content-rights agreement. Hub is not Social Studio.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string' },
+        videoUrl: { type: 'string' },
+        storeId: { type: 'string' },
+        productIds: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['title', 'videoUrl'],
+    },
+    execute: (args) => adminGraphql(
+      `mutation CreateScene($input: CreateSceneInput!) { createScene(input: $input) { id title } }`,
+      {
+        input: {
+          title: String(args.title),
+          videoUrl: String(args.videoUrl),
+          storeId: args.storeId || null,
+          productIds: Array.isArray(args.productIds) ? args.productIds.map(String) : undefined,
+        },
+      },
+      { allowWrite: true },
+    ),
+  },
+  {
     name: 'hub_update_post',
     description: 'Update a Hub store post by id. Requires a Content or All jobs key. Pass only fields to change. If you send hashtags, send at least three.',
     inputSchema: {

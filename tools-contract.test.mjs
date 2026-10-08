@@ -26,7 +26,7 @@ test('org and store rollup tools skip the channel token', () => {
 });
 
 test('tool GraphQL operations are not on the merchant denylist', () => {
-  for (const rel of ['tools/connect.mjs', 'tools/commerce.mjs', 'tools/hub.mjs', 'tools/blog.mjs', 'tools/stores.mjs', 'tools/org.mjs']) {
+  for (const rel of ['tools/connect.mjs', 'tools/commerce.mjs', 'tools/hub.mjs', 'tools/blog.mjs', 'tools/stores.mjs', 'tools/org.mjs', 'tools/social.mjs']) {
     const src = readFileSync(join(pluginRoot, rel), 'utf8');
     const blocks = [...src.matchAll(/`((?:query|mutation)[\s\S]*?)`/g)].map((m) => m[1]);
     assert.ok(blocks.length > 0, rel);

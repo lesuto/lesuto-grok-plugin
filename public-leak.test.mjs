@@ -37,6 +37,7 @@ test('scanner flags real store tokens and ignores demo placeholders', () => {
   assert.ok(findChannelTokenLeaks(house).includes(house));
   const glen = ['merchant', 'glen', 'admin'].join('_');
   assert.ok(findHouseStoreLeaks(glen).length > 0);
+  assert.ok(findHouseStoreLeaks(['Anderson', ' Teak'].join('')).length > 0);
 });
 
 test('public plugin packet has no live keys, private key files, or house store tokens', () => {

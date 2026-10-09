@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { handle, TOOLS } from './server.mjs';
+import { studioTools } from './tools/studio.mjs';
+import { studioExtraTools } from './tools/studio-extra.mjs';
 import { jsonResponse, withAgentEnv, withMockFetch } from './test/helpers.mjs';
 
 const EXPECTED_TOOLS = [
@@ -16,6 +18,12 @@ const EXPECTED_TOOLS = [
   'social_campaign_draft', 'social_campaign_save', 'social_campaign_arm', 'social_campaign_pause',
   'social_post_schedule', 'social_generate_image', 'social_generate_video',
   'studio_operator_guide', 'studio_stores', 'studio_produce_video', 'studio_job_status', 'studio_launch_campaign', 'studio_review_queue',
+  'social_campaign_resume', 'social_campaign_cancel', 'social_growth_lines', 'social_campaigns', 'social_caption',
+  ...studioTools.map((t) => t.name),
+  ...studioExtraTools.map((t) => t.name),
+  'social_growth_line_archive', 'social_growth_line_research', 'social_post_update', 'social_post_cancel',
+  'blog_cadence_status', 'social_kill_switch_on', 'social_brand_voice_get', 'social_brand_voice_save',
+  'hub_publish_scene',
   'list_stores', 'use_store', 'account_overview',
   'list_organizations', 'org_overview',
 ];

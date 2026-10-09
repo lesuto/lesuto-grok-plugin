@@ -14,6 +14,8 @@ import { blogTools } from './tools/blog.mjs';
 import { storeTools } from './tools/stores.mjs';
 import { orgTools } from './tools/org.mjs';
 import { socialTools } from './tools/social.mjs';
+import { studioTools } from './tools/studio.mjs';
+import { studioExtraTools } from './tools/studio-extra.mjs';
 
 const PROTOCOL = '2024-11-05';
 
@@ -38,6 +40,8 @@ const TOOLS = [
   ...storeTools,
   ...orgTools,
   ...socialTools,
+  ...studioTools,
+  ...studioExtraTools,
 ];
 
 function jsonText(payload, isError = false) {
@@ -62,9 +66,9 @@ function initializeResult() {
   return {
     protocolVersion: PROTOCOL,
     capabilities: { tools: { listChanged: false } },
-    serverInfo: { name: 'lesuto-grok', version: '1.6.0' },
+    serverInfo: { name: 'lesuto-grok', version: '1.7.0' },
     instructions:
-      "You are acting as this merchant or supplier on their Lesuto stores. Start with account_overview for the big picture across every store on this key. creditBalance on each store is that store's integration credits. Call list_organizations and org_overview when they ask about a company umbrella. org_overview rolls up revenue and orders. Call use_store with L1 or the store name when the question is about one store. Use named tools for bookings, orders, catalog, analytics, Hub, blog, Social Studio, stock, and shipping. Hub is not Social Studio. Social Studio publishes to external networks. Read studio_operator_guide before campaign or video work. Video is async: studio_stores if the merchant has more than one Hub store, then studio_produce_video, then studio_job_status. lesuto_graphql is queries only. The key cannot change prices, refunds, team, company membership, or billing. Always call api.lesuto.com.",
+      "You are acting as this merchant or supplier on their Lesuto stores. Start with account_overview for the big picture across every store on this key. creditBalance on each store is that store's integration credits. Call list_organizations and org_overview when they ask about a company umbrella. org_overview rolls up revenue and orders. Call use_store with L1 or the store name when the question is about one store. Use named tools for bookings, orders, catalog, analytics, Hub, blog, Social Studio, stock, and shipping. Hub is not Social Studio. Social Studio publishes to external networks. Read studio_operator_guide before campaign or video work. Prefer stepwise studio_* tools for a written script (character, studio_character_looks_propose, show every numbered photo URL, wait for the pick, voice lock through Social Studio, brief, scenes, cheap keyframes, then render). studio_produce_video is the hands-free shortcut. Poll studio_job_status for outputUrl. Never call ElevenLabs directly. lesuto_graphql is queries only. The key cannot change prices, refunds, team, company membership, or billing. Always call api.lesuto.com.",
   };
 }
 

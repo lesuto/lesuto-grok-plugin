@@ -26,7 +26,7 @@ test('org and store rollup tools skip the channel token', () => {
 });
 
 test('tool GraphQL operations are not on the merchant denylist', () => {
-  for (const rel of ['tools/connect.mjs', 'tools/commerce.mjs', 'tools/hub.mjs', 'tools/blog.mjs', 'tools/stores.mjs', 'tools/org.mjs', 'tools/social.mjs']) {
+  for (const rel of ['tools/connect.mjs', 'tools/commerce.mjs', 'tools/hub.mjs', 'tools/blog.mjs', 'tools/stores.mjs', 'tools/org.mjs', 'tools/social.mjs', 'tools/studio.mjs', 'tools/studio-extra.mjs']) {
     const src = readFileSync(join(pluginRoot, rel), 'utf8');
     const blocks = [...src.matchAll(/`((?:query|mutation)[\s\S]*?)`/g)].map((m) => m[1]);
     assert.ok(blocks.length > 0, rel);
@@ -192,6 +192,60 @@ test('skills cover Connect, catalog, orders, analytics, organizations, and Socia
   const social = readFileSync(join(dir, 'lesuto-social/SKILL.md'), 'utf8');
   assert.match(social, /studio_produce_video/);
   assert.match(social, /studio_operator_guide/);
+  assert.match(social, /studio_character_lock_voice/);
+  assert.match(social, /studio_character_looks_propose/);
+  assert.match(social, /numbered HTTPS preview URLs/);
+  assert.match(social, /50 AI credits/);
+  assert.match(social, /2 integration credits/);
+  assert.match(social, /studio_keyframes/);
+  assert.match(social, /Never call ElevenLabs/);
+  assert.match(social, /search_catalog` for the product they named/);
+  const houseNames = [
+    ['Anderson', ' Teak'].join(''),
+    'Ashcroft',
+    ['Glen', ' Hyman'].join(''),
+  ];
+  for (const name of houseNames) {
+    assert.equal(social.toLowerCase().includes(name.toLowerCase()), false, name);
+  }
+});
+
+test('studio look propose formats numbered photo URLs', async () => {
+  const { formatLookProposal, formatLookStills } = await import('./tools/studio.mjs');
+  const proposed = formatLookProposal({
+    characterId: '12',
+    visualStyle: 'realistic',
+    creditsCharged: 100,
+    candidates: [
+      { assetId: 441, previewUrl: 'https://cdn.lesuto.com/a.jpg' },
+      { assetId: 442, previewUrl: 'https://cdn.lesuto.com/b.jpg' },
+    ],
+  });
+  assert.equal(proposed.creditsCharged, 100);
+  assert.equal(proposed.looks[0].assetId, 441);
+  assert.match(proposed.message, /!\[Look 1\]\(https:\/\/cdn\.lesuto\.com\/a\.jpg\)/);
+  assert.match(proposed.message, /Ask which look to keep/);
+  assert.match(proposed.message, /100 \(50 per still\)/);
+  const { studioTools } = await import('./tools/studio.mjs');
+  const propose = studioTools.find((t) => t.name === 'studio_character_looks_propose');
+  assert.equal(propose.inputSchema.properties.force.type, 'boolean');
+  await withAgentEnv(async () => {
+    await withMockFetch((_url, init) => {
+      const body = JSON.parse(init.body);
+      assert.equal(body.variables.visualStyle, null);
+      assert.equal(body.variables.shotType, null);
+      assert.equal(body.variables.force, true);
+      return jsonResponse(200, { data: { proposeCreativeCharacterLooks: { characterId: '7', creditsCharged: 100, candidates: [] } } });
+    }, async () => {
+      await propose.execute({ id: '7', force: true });
+    });
+  });
+  const stills = formatLookStills([
+    { shotType: 'portrait', assetId: 441, previewUrl: 'https://cdn.lesuto.com/a.jpg' },
+    { shotType: 'full_body', assetId: 11, previewUrl: 'https://cdn.lesuto.com/full.jpg' },
+  ]);
+  assert.match(stills.message, /!\[full_body\]/);
+  assert.equal(stills.looks[1].assetId, 11);
 });
 
 test('studio_produce_video snaps duration and can pass a hub store', async () => {

@@ -1,6 +1,6 @@
 import { adminGraphql } from '../lib/graphql.mjs';
 
-const GROWTH_FIELDS = `id name slug promise audience tone pillars topicsIn topicsOut ctaLadder status storeId`;
+const GROWTH_FIELDS = `id name slug promise audience tone pillars topicsIn topicsOut ctaLadder characterIds status storeId`;
 const CAMPAIGN_FIELDS = `id name recipeType status storeId creditHoldId estimatedCredits config reviewDefault`;
 const STUDIO_DURATIONS = [6, 8, 15, 30];
 
@@ -22,9 +22,9 @@ Workflow:
 1. Read brand voice, connections, and growth lines.
 2. Draft a growth line with social_growth_line_draft if none exists, then save after the merchant would review it.
 3. Draft a campaign with social_campaign_draft, show the credit estimate, then save, reserve, and arm.
-4. Call studio_stores when this merchant has more than one Hub store, then studio_produce_video with that numeric storeId. Do not pass list_stores L-codes as storeId. Poll studio_job_status. Do not wait on a single GraphQL call. Length snaps to 6, 8, 15, or 30 seconds. Voiceover is off unless includeAudio is true.
-5. Schedule posts with social_post_schedule. They land in the review queue unless this key has earned low-risk auto-publish.
-6. Never work around a safety block, never turn the kill switch off, never buy credits, never connect OAuth accounts.
+4. For a written script, use stepwise studio_* tools (character, look, voice lock, brief, script, scenes, cheap keyframes, then render). studio_produce_video is the hands-free shortcut. Call studio_stores when this merchant has more than one Hub store. Do not pass list_stores L-codes as storeId. Poll studio_job_status for the MP4 outputUrl. Length snaps to 6, 8, 15, or 30 seconds. Voiceover is off unless includeAudio is true.
+5. Stop after stills and after the MP4 so the merchant can approve. Schedule posts with social_post_schedule and mediaItems (the MP4 URL) at an exact ISO scheduledAt. They land in the review queue. Resolve with studio_review_resolve.
+6. Never work around a safety block, never turn the kill switch off, never buy credits, never connect OAuth accounts. Never call ElevenLabs directly. Voices go through studio_voices_search and studio_character_lock_voice.
 
 Credits: each AI draft and generation spends AI credits on this channel, plus integration credits per GraphQL write.`;
 
@@ -78,6 +78,7 @@ export const socialTools = [
         topicsOut: { type: 'array', items: { type: 'string' } },
         ctaLadder: { type: 'array', items: { type: 'string' } },
         asDraft: { type: 'boolean' },
+        characterIds: { type: 'array', items: { type: 'number' } },
       },
       required: ['name'],
     },
@@ -95,6 +96,7 @@ export const socialTools = [
           topicsOut: args.topicsOut,
           ctaLadder: args.ctaLadder,
           asDraft: !!args.asDraft,
+          characterIds: Array.isArray(args.characterIds) ? args.characterIds.map(Number) : undefined,
         },
       },
       { allowWrite: true },
@@ -249,6 +251,11 @@ export const socialTools = [
         aspectRatio: { type: 'string' },
         storeId: { type: 'number' },
         includeAudio: { type: 'boolean' },
+        productId: { type: 'string' },
+        characterId: { type: 'string' },
+        engine: { type: 'string' },
+        quality: { type: 'string' },
+        imageAssetIds: { type: 'array', items: { type: 'string' } },
       },
       required: ['prompt'],
     },
@@ -258,9 +265,14 @@ export const socialTools = [
         input: {
           prompt: String(args.prompt),
           durationSeconds: snapStudioDuration(args.durationSeconds),
-          aspectRatio: args.aspectRatio || '9:16',
+          aspectRatio: args.aspectRatio || 'auto',
           storeId: args.storeId != null ? Number(args.storeId) : null,
           includeAudio: args.includeAudio === true,
+          productId: args.productId || null,
+          characterId: args.characterId || null,
+          engine: args.engine || null,
+          quality: args.quality || null,
+          imageAssetIds: args.imageAssetIds || null,
         },
       },
       { allowWrite: true },
@@ -275,7 +287,7 @@ export const socialTools = [
       required: ['jobId'],
     },
     execute: (args) => adminGraphql(
-      `query JobStatus($jobId: ID!) { aiMediaJobStatus(jobId: $jobId) { id state progress result { success totalCreditsUsed errorMessage } duration } }`,
+      `query JobStatus($jobId: ID!) { aiMediaJobStatus(jobId: $jobId) { id state progress result { success totalCreditsUsed errorMessage outputUrl steps { preview success error } } duration } }`,
       { jobId: String(args.jobId) },
     ),
   },
@@ -341,6 +353,8 @@ export const socialTools = [
         connectionIds: { type: 'array', items: { type: 'number' } },
         caption: { type: 'string' },
         scheduledAt: { type: 'string' },
+        videoTitle: { type: 'string' },
+        mediaItems: { type: 'array', items: { type: 'object' } },
       },
       required: ['connectionIds', 'caption'],
     },
@@ -351,6 +365,8 @@ export const socialTools = [
           connectionIds: args.connectionIds.map(Number),
           caption: String(args.caption),
           scheduledAt: args.scheduledAt || null,
+          videoTitle: args.videoTitle || null,
+          mediaItems: args.mediaItems || null,
           asDraftReview: true,
           publishGate: 'review_required',
         },
@@ -372,6 +388,147 @@ export const socialTools = [
     execute: (args) => adminGraphql(
       `mutation UpsertCadence($input: UpsertSocialBlogCadenceInput!) { upsertSocialBlogCadence(input: $input) { id name status growthLineId } }`,
       { input: { name: String(args.name), growthLineId: Number(args.growthLineId) } },
+      { allowWrite: true },
+    ),
+  },
+  {
+    name: 'social_campaign_resume',
+    description: 'Resume a paused campaign.',
+    inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+    execute: (args) => adminGraphql(
+      `mutation ResumeSocialCampaign($id: ID!) { resumeSocialCampaign(id: $id) { id status } }`,
+      { id: String(args.id) },
+      { allowWrite: true },
+    ),
+  },
+  {
+    name: 'social_campaign_cancel',
+    description: 'Cancel a campaign.',
+    inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+    execute: (args) => adminGraphql(
+      `mutation CancelSocialCampaign($id: ID!) { cancelSocialCampaign(id: $id) { id status } }`,
+      { id: String(args.id) },
+      { allowWrite: true },
+    ),
+  },
+  {
+    name: 'social_growth_lines',
+    description: 'List Growth Lines on this channel.',
+    inputSchema: { type: 'object', properties: {} },
+    execute: () => adminGraphql(
+      `query { socialGrowthLines { ${GROWTH_FIELDS} } }`,
+    ),
+  },
+  {
+    name: 'social_campaigns',
+    description: 'List Social Studio campaigns.',
+    inputSchema: { type: 'object', properties: {} },
+    execute: () => adminGraphql(
+      `query { socialCampaigns { ${CAMPAIGN_FIELDS} } }`,
+    ),
+  },
+  {
+    name: 'social_growth_line_archive',
+    description: 'Archive a Growth Line. It leaves the active list.',
+    inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+    execute: (args) => adminGraphql(
+      `mutation ArchiveLine($id: ID!) { archiveSocialGrowthLine(id: $id) }`,
+      { id: String(args.id) },
+      { allowWrite: true },
+    ),
+  },
+  {
+    name: 'social_growth_line_research',
+    description: 'Research a URL into a Growth Line. Charges AI credits.',
+    inputSchema: {
+      type: 'object',
+      properties: { url: { type: 'string' }, notes: { type: 'string' }, storeId: { type: 'number' } },
+      required: ['url'],
+    },
+    execute: (args) => adminGraphql(
+      `mutation ResearchLine($url: String!, $notes: String, $storeId: Int) { researchSocialGrowthLine(url: $url, notes: $notes, storeId: $storeId) { ${GROWTH_FIELDS} } }`,
+      { url: String(args.url), notes: args.notes || null, storeId: args.storeId ?? null },
+      { allowWrite: true },
+    ),
+  },
+  {
+    name: 'social_post_update',
+    description: 'Edit a scheduled Social Studio post before it publishes.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string' }, caption: { type: 'string' }, scheduledAt: { type: 'string' } },
+      required: ['id'],
+    },
+    execute: (args) => adminGraphql(
+      `mutation UpdatePost($id: ID!, $input: UpdateSocialPostInput!) { updateSocialPost(id: $id, input: $input) { id status } }`,
+      { id: String(args.id), input: { caption: args.caption, scheduledAt: args.scheduledAt } },
+      { allowWrite: true },
+    ),
+  },
+  {
+    name: 'social_post_cancel',
+    description: 'Cancel a scheduled Social Studio post.',
+    inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+    execute: (args) => adminGraphql(
+      `mutation CancelPost($id: ID!) { cancelSocialPost(id: $id) { id status } }`,
+      { id: String(args.id) },
+      { allowWrite: true },
+    ),
+  },
+  {
+    name: 'blog_cadence_status',
+    description: 'Pause or resume a Social Studio blog cadence.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string' }, status: { type: 'string' } },
+      required: ['id', 'status'],
+    },
+    execute: (args) => adminGraphql(
+      `mutation CadenceStatus($id: ID!, $status: String!) { setSocialBlogCadenceStatus(id: $id, status: $status) { id status } }`,
+      { id: String(args.id), status: String(args.status) },
+      { allowWrite: true },
+    ),
+  },
+  {
+    name: 'social_kill_switch_on',
+    description: 'Turn the Social Studio kill switch ON so outbound posts stop. This tool cannot turn it off.',
+    inputSchema: { type: 'object', properties: {} },
+    execute: () => adminGraphql(
+      `mutation KillOn($input: SetSocialKillSwitchInput!) { setSocialKillSwitch(input: $input) { killSwitchActive killSwitchReason } }`,
+      { input: { active: true, reason: 'Grok operator requested a halt.' } },
+      { allowWrite: true },
+    ),
+  },
+  {
+    name: 'social_brand_voice_get',
+    description: 'Read the Social Studio copy brand-voice pack for this channel.',
+    inputSchema: { type: 'object', properties: {} },
+    execute: () => adminGraphql(`query { socialBrandVoicePack { id bannedTerms requiredDisclosures factsPack } }`),
+  },
+  {
+    name: 'social_brand_voice_save',
+    description: 'Save the Social Studio copy brand-voice pack. This is copy rules, not the Creative Studio brand kit.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        bannedTerms: { type: 'array', items: { type: 'string' } },
+        requiredDisclosures: { type: 'array', items: { type: 'string' } },
+        factsPack: { type: 'string' },
+      },
+    },
+    execute: (args) => adminGraphql(
+      `mutation SaveVoicePack($input: UpsertSocialBrandVoicePackInput!) { upsertSocialBrandVoicePack(input: $input) { id bannedTerms requiredDisclosures factsPack } }`,
+      { input: args },
+      { allowWrite: true },
+    ),
+  },
+  {
+    name: 'social_caption',
+    description: 'Generate a Social Studio caption. Charges AI credits.',
+    inputSchema: { type: 'object', properties: { prompt: { type: 'string' }, platform: { type: 'string' } }, required: ['prompt'] },
+    execute: (args) => adminGraphql(
+      `mutation Caption($input: GenerateSocialCaptionInput!) { generateSocialCaption(input: $input) { caption creditsUsed } }`,
+      { input: { captionContext: String(args.prompt), platform: args.platform || 'linkedin' } },
       { allowWrite: true },
     ),
   },

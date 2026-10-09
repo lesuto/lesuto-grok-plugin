@@ -33,7 +33,7 @@ Grok acts as **you** on the stores that key covers. Start with the big picture, 
 - Buy a shipping label after you confirm
 - Hub store status, site status, posts
 - Store blog: draft, update, publish
-- Social Studio: growth lines, campaigns, social posts, campaign video (`studio_produce_video` then `studio_job_status`)
+- Social Studio: growth lines, campaigns, social posts, campaign video. Same Creative Studio path as admin (characters, look stills with numbered photo URLs so you can pick, voice pick, briefs, scripts, stills, 1080p, brand kit). Prefer stepwise `studio_*` tools; `studio_produce_video` then `studio_job_status` is the shortcut. Voice cloning, OAuth, and billing stay with a person. Look stills use membership AI credits (50 each). Agent calls use integration credits (1 read / 2 write).
 - `list_stores` and `use_store` when you want one merchant or supplier store (L1, L2, or the store name)
 - `lesuto_graphql` for extra reads. Writes go through named tools.
 
@@ -67,6 +67,7 @@ The key cannot change team, company membership, or billing. Those stay in Comman
 - Send a Connect invite after a consult
 - Confirm the SKU and stock. Fulfillment keys can set stock on hand without changing price.
 - Read recent orders and tracking
+- Run Social Studio: campaigns, posts, and campaign video, including character look photos you can pick
 - Rotate or revoke the key from Command Center when someone leaves
 
 ## Create a Lesuto account
@@ -77,7 +78,7 @@ The key cannot change team, company membership, or billing. Those stay in Comman
 
 ## Turn on AI Agent Access
 
-1. Command Center → **Integrations** → activate **AI Agent Access**.
+1. Command Center → **Integrations** → activate **AI Agent Access**. Social Studio also opens that listing: **Automate with AI Agent Access** sits left of Store.
 2. Open **Teams → AI Agent Access** (or Organizations → AI Agent Access, or Lesuto Seller → **AI Agent Access**).
 
 ## Mint the key
@@ -139,6 +140,8 @@ LESUTO_CHANNEL_TOKEN=merchant_your-slug_admin
 - What is in the last 20 orders, and where are they in fulfillment?
 - Draft a Social Studio campaign and show the credit estimate.
 - Produce a 15 second campaign video for this Hub store, then tell me when the job finishes.
+- Create a character, show me the numbered look photos, then lock the look I pick.
+- Search voices, lock one on the character, then render the timeline with brand kit overlays.
 
 Skills in `skills/` (`lesuto-connect`, `lesuto-catalog`, `lesuto-orders`, `lesuto-analytics`, `lesuto-organizations`, `lesuto-social`) tell the agent which tool to start with.
 

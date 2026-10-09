@@ -60,6 +60,8 @@ export function houseSlugs() {
     ['merchant', 'glen'].join('_'),
     ['supplier', 'ashcroft'].join('_'),
     ['merchant_', ['lesuto', 'technologies', 'inc'].join('-')].join(''),
+    ['anderson', ' teak'].join(''),
+    ['ashcroft', ' furniture'].join(''),
   ];
 }
 

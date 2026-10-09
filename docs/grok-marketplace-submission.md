@@ -2,7 +2,7 @@
 
 This is the packet for a PR against [xai-org/plugin-marketplace](https://github.com/xai-org/plugin-marketplace).
 
-Open listing PR: [xai-org/plugin-marketplace#828](https://github.com/xai-org/plugin-marketplace/pull/828) (Add Lesuto Grok plugin). As of 2026-09-22 the PR is still **open**. Review was requested. It has not merged, so Lesuto is not in `/marketplace` yet. Plugin version **1.6.0** adds **All jobs** (Connect, Content, Social, and Fulfillment on one secret). Social Studio tools (growth lines, campaigns, campaign video) require a Social or All jobs key. GraphQL stays queries only; named tools handle writes.
+Open listing PR: [xai-org/plugin-marketplace#828](https://github.com/xai-org/plugin-marketplace/pull/828) (Add Lesuto Grok plugin). As of 2026-09-22 the PR is still **open**. Review was requested. It has not merged, so Lesuto is not in `/marketplace` yet. Plugin version **1.6.0** added **All jobs** (Connect, Content, Social, and Fulfillment on one secret). Version **1.7.0** returns numbered character look photos Grok shows so the merchant can pick one. Social Studio tools (growth lines, campaigns, campaign video) require a Social or All jobs key. GraphQL stays queries only; named tools handle writes.
 
 Public source (Grok clones this SHA): https://github.com/lesuto/lesuto-grok-plugin
 
@@ -19,7 +19,7 @@ git ls-remote https://github.com/lesuto/lesuto-grok-plugin.git HEAD
 ```json
 {
   "name": "lesuto",
-  "description": "Ask Grok how all your stores and companies are doing. Drill into one when you need to.",
+  "description": "Ask Grok how all your stores and companies are doing. Run Social Studio. Drill into one when you need to.",
   "category": "productivity",
   "source": {
     "source": "url",

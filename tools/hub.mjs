@@ -98,6 +98,32 @@ export const hubTools = [
     ),
   },
   {
+    name: 'hub_publish_scene',
+    description: 'Start async publish for a Hub scene. Hub is not Social Studio.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        videoUrl: { type: 'string' },
+        title: { type: 'string' },
+        duration: { type: 'number' },
+        thumbnailUrl: { type: 'string' },
+      },
+      required: ['videoUrl', 'duration'],
+    },
+    execute: (args) => adminGraphql(
+      `mutation PublishScene($input: BeginAsyncScenePublishInput!) { beginAsyncScenePublish(input: $input) { id title } }`,
+      {
+        input: {
+          videoUrl: String(args.videoUrl),
+          duration: Number(args.duration),
+          title: args.title || null,
+          thumbnailUrl: args.thumbnailUrl || null,
+        },
+      },
+      { allowWrite: true },
+    ),
+  },
+  {
     name: 'hub_update_post',
     description: 'Update a Hub store post by id. Requires a Content or All jobs key. Pass only fields to change. If you send hashtags, send at least three.',
     inputSchema: {

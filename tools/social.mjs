@@ -2,6 +2,19 @@ import { adminGraphql } from '../lib/graphql.mjs';
 
 const GROWTH_FIELDS = `id name slug promise audience tone pillars topicsIn topicsOut ctaLadder status storeId`;
 const CAMPAIGN_FIELDS = `id name recipeType status storeId creditHoldId estimatedCredits config reviewDefault`;
+const STUDIO_DURATIONS = [6, 8, 15, 30];
+
+export function snapStudioDuration(raw) {
+  const n = Number(raw);
+  const want = Number.isFinite(n) && n > 0 ? n : 8;
+  return STUDIO_DURATIONS.reduce((best, d) => {
+    const dDelta = Math.abs(d - want);
+    const bestDelta = Math.abs(best - want);
+    if (dDelta < bestDelta) return d;
+    if (dDelta === bestDelta) return d < best ? d : best;
+    return best;
+  }, STUDIO_DURATIONS[0]);
+}
 
 export const SOCIAL_OPERATOR_GUIDE = `You operate Lesuto Social Studio as this merchant. Hub is a separate surface. Social Studio publishes to Instagram, Facebook, Pinterest, X, LinkedIn, TikTok, and YouTube, not to Hub.
 
@@ -9,7 +22,7 @@ Workflow:
 1. Read brand voice, connections, and growth lines.
 2. Draft a growth line with social_growth_line_draft if none exists, then save after the merchant would review it.
 3. Draft a campaign with social_campaign_draft, show the credit estimate, then save, reserve, and arm.
-4. Produce video with studio_produce_video (async job). Poll studio_job_status. Do not wait on a single GraphQL call.
+4. Call studio_stores when this merchant has more than one Hub store, then studio_produce_video with that numeric storeId. Do not pass list_stores L-codes as storeId. Poll studio_job_status. Do not wait on a single GraphQL call. Length snaps to 6, 8, 15, or 30 seconds. Voiceover is off unless includeAudio is true.
 5. Schedule posts with social_post_schedule. They land in the review queue unless this key has earned low-risk auto-publish.
 6. Never work around a safety block, never turn the kill switch off, never buy credits, never connect OAuth accounts.
 
@@ -218,14 +231,24 @@ export const socialTools = [
     ),
   },
   {
+    name: 'studio_stores',
+    description: 'List Hub stores on this channel for Social Studio video. Use the numeric id as storeId on studio_produce_video. This is not list_stores L-codes.',
+    inputSchema: { type: 'object', properties: {} },
+    execute: () => adminGraphql(
+      `query StudioStores { videoProductionChannelContext { channelType storeRequired stores { id name slug } } }`,
+    ),
+  },
+  {
     name: 'studio_produce_video',
-    description: 'Start an async Social Studio video job (brief to stitched cut). Returns a job id. Poll studio_job_status.',
+    description: 'Start an async Social Studio video job (brief to stitched cut). Returns a job id. Poll studio_job_status. Duration snaps to 6, 8, 15, or 30 seconds. Merchant channels with more than one Hub store need storeId from studio_stores. Voiceover stays off unless includeAudio is true, and includeAudio needs a character with a locked voice.',
     inputSchema: {
       type: 'object',
       properties: {
         prompt: { type: 'string' },
         durationSeconds: { type: 'number' },
         aspectRatio: { type: 'string' },
+        storeId: { type: 'number' },
+        includeAudio: { type: 'boolean' },
       },
       required: ['prompt'],
     },
@@ -234,8 +257,10 @@ export const socialTools = [
       {
         input: {
           prompt: String(args.prompt),
-          durationSeconds: Number(args.durationSeconds) || 8,
+          durationSeconds: snapStudioDuration(args.durationSeconds),
           aspectRatio: args.aspectRatio || '9:16',
+          storeId: args.storeId != null ? Number(args.storeId) : null,
+          includeAudio: args.includeAudio === true,
         },
       },
       { allowWrite: true },

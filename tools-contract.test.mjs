@@ -166,10 +166,10 @@ test('blog_delete is not a tool', () => {
   assert.equal(TOOLS.some((t) => t.name === 'blog_delete'), false);
 });
 
-test('skills cover Connect, catalog, orders, analytics, and organizations', () => {
+test('skills cover Connect, catalog, orders, analytics, organizations, and Social Studio', () => {
   const dir = join(pluginRoot, 'skills');
   const names = readdirSync(dir);
-  for (const need of ['lesuto-connect', 'lesuto-catalog', 'lesuto-orders', 'lesuto-analytics', 'lesuto-organizations']) {
+  for (const need of ['lesuto-connect', 'lesuto-catalog', 'lesuto-orders', 'lesuto-analytics', 'lesuto-organizations', 'lesuto-social']) {
     assert.ok(names.includes(need), need);
     const skill = readFileSync(join(dir, need, 'SKILL.md'), 'utf8');
     assert.match(skill, /api\.lesuto\.com|Lesuto/);
@@ -189,4 +189,28 @@ test('skills cover Connect, catalog, orders, analytics, and organizations', () =
   const orgs = readFileSync(join(dir, 'lesuto-organizations/SKILL.md'), 'utf8');
   assert.match(orgs, /list_organizations/);
   assert.match(orgs, /org_overview/);
+  const social = readFileSync(join(dir, 'lesuto-social/SKILL.md'), 'utf8');
+  assert.match(social, /studio_produce_video/);
+  assert.match(social, /studio_operator_guide/);
+});
+
+test('studio_produce_video snaps duration and can pass a hub store', async () => {
+  const { snapStudioDuration, socialTools } = await import('./tools/social.mjs');
+  assert.equal(snapStudioDuration(25), 30);
+  assert.equal(snapStudioDuration(7), 6);
+  assert.equal(snapStudioDuration(undefined), 8);
+  const stores = socialTools.find((t) => t.name === 'studio_stores');
+  assert.match(stores.description, /not list_stores/);
+  const tool = socialTools.find((t) => t.name === 'studio_produce_video');
+  await withAgentEnv(async () => {
+    await withMockFetch((_url, init) => {
+      const body = JSON.parse(init.body);
+      assert.equal(body.variables.input.durationSeconds, 30);
+      assert.equal(body.variables.input.storeId, 12);
+      assert.equal(body.variables.input.includeAudio, false);
+      return jsonResponse(200, { data: { aiProduceStudioVideoJob: { jobId: '1', estimatedMs: 1 } } });
+    }, async () => {
+      await tool.execute({ prompt: 'teak chair', durationSeconds: 25, storeId: 12 });
+    });
+  });
 });

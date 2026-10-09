@@ -15,7 +15,7 @@ const EXPECTED_TOOLS = [
   'social_connections', 'social_growth_line_draft', 'social_growth_line_save',
   'social_campaign_draft', 'social_campaign_save', 'social_campaign_arm', 'social_campaign_pause',
   'social_post_schedule', 'social_generate_image', 'social_generate_video',
-  'studio_operator_guide', 'studio_produce_video', 'studio_job_status', 'studio_launch_campaign', 'studio_review_queue',
+  'studio_operator_guide', 'studio_stores', 'studio_produce_video', 'studio_job_status', 'studio_launch_campaign', 'studio_review_queue',
   'list_stores', 'use_store', 'account_overview',
   'list_organizations', 'org_overview',
 ];

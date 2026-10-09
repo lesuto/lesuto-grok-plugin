@@ -33,10 +33,11 @@ Grok acts as **you** on the stores that key covers. Start with the big picture, 
 - Buy a shipping label after you confirm
 - Hub store status, site status, posts
 - Store blog: draft, update, publish
+- Social Studio: growth lines, campaigns, social posts, campaign video (`studio_produce_video` then `studio_job_status`)
 - `list_stores` and `use_store` when you want one merchant or supplier store (L1, L2, or the store name)
 - `lesuto_graphql` for extra reads. Writes go through named tools.
 
-Jobs: **Read**, **Connect**, **Content**, **Fulfillment**, or **All jobs** (Connect, Content, and Fulfillment on one secret). Docs: [AI Agent Access](https://docs.lesuto.com/docs/integrations/ai-agent-access).
+Jobs: **Read**, **Connect**, **Content**, **Social**, **Fulfillment**, or **All jobs** (Connect, Content, Social, and Fulfillment on one secret). Docs: [AI Agent Access](https://docs.lesuto.com/docs/integrations/ai-agent-access).
 
 Public guests still book on your Connect page. Grok creates invite links. Pass a guest email only when you asked to send the invite.
 
@@ -85,8 +86,9 @@ The key cannot change team, company membership, or billing. Those stay in Comman
    - **Read**: answers questions
    - **Connect**: bookings and invite links
    - **Content**: store blog and Hub posts
+   - **Social**: Social Studio campaigns, posts, and campaign video
    - **Fulfillment**: stock on hand and shipping labels
-   - **All jobs**: Connect, Content, and Fulfillment on one secret
+   - **All jobs**: Connect, Content, Social, and Fulfillment on one secret
 2. Default expiry is 90 days (max 365).
 3. Click **Copy MCP env** once. The secret is shown at create time. If you lose it, rotate.
 
@@ -135,8 +137,10 @@ LESUTO_CHANNEL_TOKEN=merchant_your-slug_admin
 - List my meeting types. Send a Connect invite.
 - Search the catalog for this SKU and check stock.
 - What is in the last 20 orders, and where are they in fulfillment?
+- Draft a Social Studio campaign and show the credit estimate.
+- Produce a 15 second campaign video for this Hub store, then tell me when the job finishes.
 
-Skills in `skills/` (`lesuto-connect`, `lesuto-catalog`, `lesuto-orders`, `lesuto-analytics`, `lesuto-organizations`) tell the agent which tool to start with.
+Skills in `skills/` (`lesuto-connect`, `lesuto-catalog`, `lesuto-orders`, `lesuto-analytics`, `lesuto-organizations`, `lesuto-social`) tell the agent which tool to start with.
 
 ## Cursor, Claude, ChatGPT, and scripts (same key)
 

@@ -10,7 +10,7 @@ const ACCOUNT_OVERVIEW_QUERY = `query AgentAccountOverview($period: String) {
     totalRevenue totalOrders avgOrderValue returnRate
     previousPeriod { totalRevenue totalOrders avgOrderValue revenueChange }
     payoutSummary { held eligible paidOut disputed pending }
-    stores { channelId channelCode channelName revenue orders avgOrderValue previousRevenue revenueChange creditBalance }
+    stores { channelId channelCode channelName revenue orders avgOrderValue previousRevenue revenueChange creditBalance aiCreditBalance }
     topProducts { productName sku revenue unitsSold orders }
   }
 }`;
@@ -69,7 +69,7 @@ export const storeTools = [
   },
   {
     name: 'account_overview',
-    description: 'Revenue, orders, payouts, and each store creditBalance across every store on this key. Each balance belongs to that store. No use_store needed. Period is 7d, 30d, 90d, or 1y.',
+    description: 'Revenue, orders, payouts, and each store creditBalance (integration) plus aiCreditBalance across every store on this key. Each balance belongs to that store. No use_store needed. Period is 7d, 30d, 90d, or 1y.',
     inputSchema: {
       type: 'object',
       properties: { period: { type: 'string', description: '7d, 30d, 90d, or 1y' } },

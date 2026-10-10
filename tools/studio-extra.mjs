@@ -3,6 +3,7 @@
  * Grok still only calls api.lesuto.com. Keep this file for parity coverage.
  */
 import { adminGraphql } from '../lib/graphql.mjs';
+import { wrapCreditTool } from '../lib/credit-confirm.mjs';
 
 const SCRIPT_FIELDS = `id title body hookLine ctaLine endCard { lines durationSeconds } status`;
 const CHARACTER_FIELDS = `id name archetype description voiceConfig`;
@@ -11,7 +12,7 @@ function gql(query, variables, write = false) {
   return adminGraphql(query, variables, write ? { allowWrite: true } : undefined);
 }
 
-export const studioExtraTools = [
+const RAW_STUDIO_EXTRA_TOOLS = [
   {
     name: 'studio_credits',
     description: 'Read AI media credit balance for this channel.',
@@ -41,9 +42,9 @@ export const studioExtraTools = [
   },
   {
     name: 'studio_pricing',
-    description: 'Creative Studio credit prices for scripts, stills, and renders.',
+    description: 'Creative Studio credit prices for scripts, stills, and renders. scriptRevise is the cheap polish cost.',
     inputSchema: { type: 'object', properties: {} },
-    execute: () => gql(`query { creativeStudioPricing { canSpend balance scriptPack keyframePerScene } }`),
+    execute: () => gql(`query { creativeStudioPricing { canSpend balance scriptPack scriptRevise characterLook characterLookPackage keyframePerScene videoStandardPerScene videoPremiumPerScene videoCinemaPerScene timelineStitchStandard } }`),
   },
   {
     name: 'studio_levels',
@@ -80,6 +81,16 @@ export const studioExtraTools = [
     execute: (args) => gql(
       `mutation SaveNote($input: SaveCharacterResearchNoteInput!) { saveCharacterResearchNote(input: $input) { id title } }`,
       { input: { characterId: String(args.characterId), title: String(args.title), url: String(args.url) } },
+      true,
+    ),
+  },
+  {
+    name: 'studio_brief_duplicate',
+    description: 'Duplicate a brief and copy the locked script template at 0 credits. Stills are not copied.',
+    inputSchema: { type: 'object', properties: { briefId: { type: 'string' } }, required: ['briefId'] },
+    execute: (args) => gql(
+      `mutation DupBrief($briefId: ID!) { duplicateCreativeBrief(briefId: $briefId) { id status answers completeness { complete missing } } }`,
+      { briefId: String(args.briefId) },
       true,
     ),
   },
@@ -200,3 +211,5 @@ export const studioExtraTools = [
     ),
   },
 ];
+
+export const studioExtraTools = RAW_STUDIO_EXTRA_TOOLS.map(wrapCreditTool);

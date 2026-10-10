@@ -195,7 +195,7 @@ test('skills cover Connect, catalog, orders, analytics, organizations, and Socia
   assert.match(social, /studio_character_lock_voice/);
   assert.match(social, /studio_character_looks_propose/);
   assert.match(social, /numbered HTTPS preview URLs/);
-  assert.match(social, /50 AI credits/);
+  assert.match(social, /12 AI credits/);
   assert.match(social, /2 integration credits/);
   assert.match(social, /studio_keyframes/);
   assert.match(social, /Never call ElevenLabs/);
@@ -232,12 +232,15 @@ test('studio look propose formats numbered photo URLs', async () => {
   await withAgentEnv(async () => {
     await withMockFetch((_url, init) => {
       const body = JSON.parse(init.body);
+      if (String(body.query).includes('creativeStudioPricing')) {
+        return jsonResponse(200, { data: { creativeStudioPricing: { canSpend: true, balance: 5000, characterLookPackage: 24 } } });
+      }
       assert.equal(body.variables.visualStyle, null);
       assert.equal(body.variables.shotType, null);
       assert.equal(body.variables.force, true);
       return jsonResponse(200, { data: { proposeCreativeCharacterLooks: { characterId: '7', creditsCharged: 100, candidates: [] } } });
     }, async () => {
-      await propose.execute({ id: '7', force: true });
+      await propose.execute({ id: '7', force: true, confirm: true });
     });
   });
   const stills = formatLookStills([
@@ -259,12 +262,16 @@ test('studio_produce_video snaps duration and can pass a hub store', async () =>
   await withAgentEnv(async () => {
     await withMockFetch((_url, init) => {
       const body = JSON.parse(init.body);
+      if (String(body.query).includes('creativeStudioPricing')) {
+        return jsonResponse(200, { data: { creativeStudioPricing: { canSpend: true, balance: 5000, videoStandardPerScene: 120 } } });
+      }
       assert.equal(body.variables.input.durationSeconds, 30);
       assert.equal(body.variables.input.storeId, 12);
       assert.equal(body.variables.input.includeAudio, false);
+      assert.equal(body.variables.input.termsAcknowledged, true);
       return jsonResponse(200, { data: { aiProduceStudioVideoJob: { jobId: '1', estimatedMs: 1 } } });
     }, async () => {
-      await tool.execute({ prompt: 'teak chair', durationSeconds: 25, storeId: 12 });
+      await tool.execute({ prompt: 'teak chair', durationSeconds: 25, storeId: 12, confirm: true });
     });
   });
 });

@@ -1,4 +1,5 @@
 import { adminGraphql } from '../lib/graphql.mjs';
+import { wrapCreditTool } from '../lib/credit-confirm.mjs';
 
 const GROWTH_FIELDS = `id name slug promise audience tone pillars topicsIn topicsOut ctaLadder characterIds status storeId`;
 const CAMPAIGN_FIELDS = `id name recipeType status storeId creditHoldId estimatedCredits config reviewDefault`;
@@ -22,13 +23,13 @@ Workflow:
 1. Read brand voice, connections, and growth lines.
 2. Draft a growth line with social_growth_line_draft if none exists, then save after the merchant would review it.
 3. Draft a campaign with social_campaign_draft, show the credit estimate, then save, reserve, and arm.
-4. For a written script, use stepwise studio_* tools (character, look, voice lock, brief, script, scenes, cheap keyframes, then render). studio_produce_video is the hands-free shortcut. Call studio_stores when this merchant has more than one Hub store. Do not pass list_stores L-codes as storeId. Poll studio_job_status for the MP4 outputUrl. Length snaps to 6, 8, 15, or 30 seconds. Voiceover is off unless includeAudio is true.
+4. Call studio_video_plan before spend. For a written script, use stepwise studio_* tools (character, look, voice lock, brief, script, scenes, cheap keyframes, then render). studio_produce_video is the hands-free shortcut. Quote AI credits, then confirm true. Call studio_stores when this merchant has more than one Hub store. Do not pass list_stores L-codes as storeId. Poll studio_job_status for the MP4 outputUrl. Length snaps to 6, 8, 15, or 30 seconds. Voiceover is off unless includeAudio is true.
 5. Stop after stills and after the MP4 so the merchant can approve. Schedule posts with social_post_schedule and mediaItems (the MP4 URL) at an exact ISO scheduledAt. They land in the review queue. Resolve with studio_review_resolve.
 6. Never work around a safety block, never turn the kill switch off, never buy credits, never connect OAuth accounts. Never call ElevenLabs directly. Voices go through studio_voices_search and studio_character_lock_voice.
 
 Credits: each AI draft and generation spends AI credits on this channel, plus integration credits per GraphQL write.`;
 
-export const socialTools = [
+const RAW_SOCIAL_TOOLS = [
   {
     name: 'studio_operator_guide',
     description: 'How to operate Social Studio as this merchant. Read this before drafting campaigns or video.',
@@ -237,7 +238,7 @@ export const socialTools = [
     description: 'List Hub stores on this channel for Social Studio video. Use the numeric id as storeId on studio_produce_video. This is not list_stores L-codes.',
     inputSchema: { type: 'object', properties: {} },
     execute: () => adminGraphql(
-      `query StudioStores { videoProductionChannelContext { channelType storeRequired stores { id name slug } } }`,
+      `query StudioStores { videoProductionChannelContext { channelId channelCode channelName channelType storeRequired aiCreditBalance stores { id name slug } } }`,
     ),
   },
   {
@@ -256,6 +257,7 @@ export const socialTools = [
         engine: { type: 'string' },
         quality: { type: 'string' },
         imageAssetIds: { type: 'array', items: { type: 'string' } },
+        termsAcknowledged: { type: 'boolean' },
       },
       required: ['prompt'],
     },
@@ -273,6 +275,7 @@ export const socialTools = [
           engine: args.engine || null,
           quality: args.quality || null,
           imageAssetIds: args.imageAssetIds || null,
+          termsAcknowledged: args.confirm === true || args.termsAcknowledged === true,
         },
       },
       { allowWrite: true },
@@ -533,3 +536,5 @@ export const socialTools = [
     ),
   },
 ];
+
+export const socialTools = RAW_SOCIAL_TOOLS.map(wrapCreditTool);

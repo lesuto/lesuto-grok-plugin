@@ -4,6 +4,7 @@
  * when the merchant wrote the script or picked a voice.
  */
 import { adminGraphql } from '../lib/graphql.mjs';
+import { wrapCreditTool } from '../lib/credit-confirm.mjs';
 
 const SCENE_FIELDS = `id order label subject action cameraMove lighting durationSeconds isOpeningHook voiceover onScreenText status keyframeAssetId keyframePreviewUrl endKeyframeAssetId endKeyframePreviewUrl renderedAssetId renderedPreviewUrl`;
 const SCRIPT_FIELDS = `id briefId title body hookLine ctaLine endCard { lines durationSeconds } rankScore variantIndex status complianceFlags aiGenerated beats { order label voiceover onScreenText visual durationSeconds }`;
@@ -87,7 +88,7 @@ export function formatLookStills(stills) {
   };
 }
 
-export const studioTools = [
+const RAW_STUDIO_TOOLS = [
   {
     name: 'studio_brief_catalog',
     description: 'List Creative Studio brief questions, categories, styles, durations, and platforms.',
@@ -114,11 +115,11 @@ export const studioTools = [
   },
   {
     name: 'studio_brief_lock',
-    description: 'Lock a brief after the merchant accepts the AI Generated Media License. Auto aspect resolves here.',
+    description: 'Lock a brief after the merchant accepts the AI Generated Media License (version 2.0). Auto aspect resolves here.',
     inputSchema: { type: 'object', properties: { briefId: { type: 'string' }, rightsAckVersion: { type: 'string' } }, required: ['briefId'] },
     execute: (args) => gql(
       `mutation LockBrief($briefId: ID!, $rightsAckVersion: String) { lockCreativeBrief(briefId: $briefId, rightsAckVersion: $rightsAckVersion) { ${BRIEF_FIELDS} } }`,
-      { briefId: String(args.briefId), rightsAckVersion: args.rightsAckVersion || null },
+      { briefId: String(args.briefId), rightsAckVersion: args.rightsAckVersion || '2.0' },
       true,
     ),
   },
@@ -142,6 +143,7 @@ export const studioTools = [
     inputSchema: {
       type: 'object',
       properties: {
+        briefId: { type: 'string' },
         title: { type: 'string' },
         body: { type: 'string' },
         storeId: { type: 'number' },
@@ -154,7 +156,7 @@ export const studioTools = [
     execute: async (args) => {
       const briefRes = await gql(
         `mutation FromDraft($input: CreateBriefFromScriptDraftInput!) { createBriefFromScriptDraft(input: $input) { ${BRIEF_FIELDS} } }`,
-        { input: { title: String(args.title), body: String(args.body), storeId: args.storeId ?? null, characterId: args.characterId || null } },
+        { input: { briefId: args.briefId || null, title: String(args.title), body: String(args.body), storeId: args.storeId ?? null, characterId: args.characterId || null } },
         true,
       );
       const briefId = briefRes?.createBriefFromScriptDraft?.id;
@@ -169,11 +171,15 @@ export const studioTools = [
   },
   {
     name: 'studio_scripts_generate',
-    description: 'AI script pack for a locked brief. Charges script credits.',
-    inputSchema: { type: 'object', properties: { briefId: { type: 'string' } }, required: ['briefId'] },
+    description: 'One AI script pack (3-4 variants) for a locked brief. Idempotent if a pack exists. Pass force true to regenerate.',
+    inputSchema: {
+      type: 'object',
+      properties: { briefId: { type: 'string' }, force: { type: 'boolean' } },
+      required: ['briefId'],
+    },
     execute: (args) => gql(
-      `mutation GenScripts($briefId: ID!) { generateCreativeScripts(briefId: $briefId) { ${SCRIPT_FIELDS} } }`,
-      { briefId: String(args.briefId) },
+      `mutation GenScripts($briefId: ID!, $force: Boolean) { generateCreativeScripts(briefId: $briefId, force: $force) { ${SCRIPT_FIELDS} } }`,
+      { briefId: String(args.briefId), force: args.force === true },
       true,
     ),
   },
@@ -285,17 +291,26 @@ export const studioTools = [
   },
   {
     name: 'studio_keyframes',
-    description: 'Generate cheap stills. Pass which=start|end and sceneId to regenerate one frame. Stop and show preview URLs before paying for motion.',
+    description: 'Generate cheap stills. Pass sceneId for one beat (sync). Without sceneId this enqueues a job. Poll studio_job_status. Skip-if-ready stills are free. Stop and show preview URLs before paying for motion.',
     inputSchema: {
       type: 'object',
-      properties: { scriptId: { type: 'string' }, sceneId: { type: 'string' }, which: { type: 'string' } },
+      properties: { scriptId: { type: 'string' }, sceneId: { type: 'string' }, which: { type: 'string' }, force: { type: 'boolean' } },
       required: ['scriptId'],
     },
-    execute: (args) => gql(
-      `mutation Keyframes($scriptId: ID!, $sceneId: ID, $which: String) { generateCreativeKeyframes(scriptId: $scriptId, sceneId: $sceneId, which: $which) { ${SCENE_FIELDS} } }`,
-      { scriptId: String(args.scriptId), sceneId: args.sceneId || null, which: args.which || null },
-      true,
-    ),
+    execute: (args) => {
+      if (args.sceneId) {
+        return gql(
+          `mutation Keyframes($scriptId: ID!, $sceneId: ID, $which: String, $force: Boolean) { generateCreativeKeyframes(scriptId: $scriptId, sceneId: $sceneId, which: $which, force: $force) { ${SCENE_FIELDS} } }`,
+          { scriptId: String(args.scriptId), sceneId: String(args.sceneId), which: args.which || null, force: args.force === true },
+          true,
+        );
+      }
+      return gql(
+        `mutation EnqueueKeyframes($scriptId: ID!, $which: String, $force: Boolean) { enqueueCreativeKeyframes(scriptId: $scriptId, which: $which, force: $force) { jobId estimatedMs } }`,
+        { scriptId: String(args.scriptId), which: args.which || null, force: args.force === true },
+        true,
+      );
+    },
   },
   {
     name: 'studio_keyframe_regenerate',
@@ -306,24 +321,33 @@ export const studioTools = [
       required: ['scriptId', 'sceneId', 'which'],
     },
     execute: (args) => gql(
-      `mutation Regen($scriptId: ID!, $sceneId: ID, $which: String) { generateCreativeKeyframes(scriptId: $scriptId, sceneId: $sceneId, which: $which) { ${SCENE_FIELDS} } }`,
-      { scriptId: String(args.scriptId), sceneId: String(args.sceneId), which: String(args.which) },
+      `mutation Regen($scriptId: ID!, $sceneId: ID, $which: String, $force: Boolean) { generateCreativeKeyframes(scriptId: $scriptId, sceneId: $sceneId, which: $which, force: $force) { ${SCENE_FIELDS} } }`,
+      { scriptId: String(args.scriptId), sceneId: String(args.sceneId), which: String(args.which), force: true },
       true,
     ),
   },
   {
     name: 'studio_render_scenes',
-    description: 'Animate approved keyframes. quality=standard|hero (1080p). Charges video credits. Wait for the merchant to approve stills first.',
+    description: 'Animate approved keyframes. Pass sceneId for one clip. Without sceneId this enqueues a job. Poll studio_job_status. quality=standard|hero. Ready clips are free.',
     inputSchema: {
       type: 'object',
-      properties: { scriptId: { type: 'string' }, engine: { type: 'string' }, quality: { type: 'string' }, force: { type: 'boolean' } },
+      properties: { scriptId: { type: 'string' }, sceneId: { type: 'string' }, engine: { type: 'string' }, quality: { type: 'string' }, force: { type: 'boolean' } },
       required: ['scriptId'],
     },
-    execute: (args) => gql(
-      `mutation RenderScenes($scriptId: ID!, $engine: String, $force: Boolean, $quality: String) { renderCreativeScenes(scriptId: $scriptId, engine: $engine, force: $force, quality: $quality) { creditsUsedEstimate renderedAssetIds quality { sceneId pass score reasons } scenes { ${SCENE_FIELDS} } } }`,
-      { scriptId: String(args.scriptId), engine: args.engine || null, force: args.force === true, quality: args.quality || null },
-      true,
-    ),
+    execute: (args) => {
+      if (args.sceneId) {
+        return gql(
+          `mutation RenderScenes($scriptId: ID!, $sceneId: ID, $engine: String, $force: Boolean, $quality: String) { renderCreativeScenes(scriptId: $scriptId, sceneId: $sceneId, engine: $engine, force: $force, quality: $quality) { creditsUsedEstimate renderedAssetIds quality { sceneId pass score reasons } scenes { ${SCENE_FIELDS} } } }`,
+          { scriptId: String(args.scriptId), sceneId: String(args.sceneId), engine: args.engine || null, force: args.force === true, quality: args.quality || null },
+          true,
+        );
+      }
+      return gql(
+        `mutation EnqueueRenders($scriptId: ID!, $engine: String, $force: Boolean, $quality: String) { enqueueCreativeSceneRenders(scriptId: $scriptId, engine: $engine, force: $force, quality: $quality) { jobId estimatedMs } }`,
+        { scriptId: String(args.scriptId), engine: args.engine || null, force: args.force === true, quality: args.quality || null },
+        true,
+      );
+    },
   },
   {
     name: 'studio_render_storyboard',
@@ -359,7 +383,7 @@ export const studioTools = [
           clips: args.clips,
           qualityTier: args.qualityTier || 'standard',
           canvasMode: args.canvasMode || null,
-          includeVoiceover: args.includeVoiceover !== false,
+          includeVoiceover: args.includeVoiceover === true,
           burnOverlays: args.burnOverlays !== false,
           musicAssetId: args.musicAssetId || null,
         },
@@ -408,7 +432,7 @@ export const studioTools = [
   },
   {
     name: 'studio_character_looks_propose',
-    description: 'Generate two look stills (50 AI credits each). Returns numbered HTTPS preview URLs and markdown photos. Show every photo, then wait for the merchant to pick one before studio_character_look_commit.',
+    description: 'Generate two look stills (12 AI credits each, 24 for the pair). Returns numbered HTTPS preview URLs and markdown photos. Show every photo, then wait for the merchant to pick one before studio_character_look_commit.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -670,4 +694,105 @@ export const studioTools = [
       true,
     ),
   },
+  {
+    name: 'studio_video_plan',
+    description: 'Quote a video path before spend. Returns idea prompts, Hands-free vs Guided, first-film vs template reuse, and motion cost before render.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        idea: { type: 'string' },
+        sceneCount: { type: 'number' },
+        quality: { type: 'string' },
+        hasLockedScript: { type: 'boolean' },
+      },
+    },
+    execute: async (args) => {
+      const pricing = await gql(`query { creativeStudioPricing { canSpend balance scriptPack scriptRevise keyframePerScene videoStandardPerScene videoPremiumPerScene videoCinemaPerScene timelineStitchStandard } }`);
+      const p = pricing.creativeStudioPricing || {};
+      const scenes = Math.max(1, Math.min(8, Number(args.sceneCount) || 3));
+      const quality = String(args.quality || 'standard').toLowerCase();
+      const motionUnit = quality === 'hero' || quality === 'cinema'
+        ? Number(p.videoCinemaPerScene || 350)
+        : quality === 'premium' || quality === 'kling'
+          ? Number(p.videoPremiumPerScene || 150)
+          : Number(p.videoStandardPerScene || 150);
+      const stills = scenes * Number(p.keyframePerScene || 12);
+      const motion = scenes * motionUnit;
+      const stitch = Number(p.timelineStitchStandard || 0);
+      const firstFilm = Number(p.scriptPack || 15) + stills + motion + stitch;
+      const nextSku = stills + motion + stitch;
+      return {
+        ideaPrompts: [
+          'Show the product in the real room it belongs in, then a close detail, then the CTA.',
+          'Walk through one benefit per beat. Keep the voiceover short enough to read on screen.',
+          'Open on a catalog photo if you have one, then cut to lifestyle B-roll without forcing the SKU into every frame.',
+        ],
+        modes: {
+          handsFree: 'studio_produce_video. One async job, brief-to-stitch. Use when they gave a short idea, not a finished script.',
+          guided: 'Stepwise studio_* tools. Use when they wrote the script, picked a look, or locked a voice.',
+        },
+        firstFilmCredits: args.hasLockedScript ? nextSku : firstFilm,
+        nextSkuCredits: nextSku,
+        republishCredits: 0,
+        breakdown: { stills, motion, stitch, scriptPack: args.hasLockedScript ? 0 : Number(p.scriptPack || 15) },
+        balance: Number(p.balance || 0),
+        idea: args.idea || null,
+        note: 'Ready stills and clips are free. Call the spend tools with confirm true after the merchant agrees.',
+      };
+    },
+  },
+  {
+    name: 'studio_stitch_from_script',
+    description: 'Stitch rendered scenes for a script. Voiceover stays off unless includeVoiceover is true and a voice is locked. Warns if the end card is over 4 seconds.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        scriptId: { type: 'string' },
+        includeVoiceover: { type: 'boolean' },
+        qualityTier: { type: 'string' },
+      },
+      required: ['scriptId'],
+    },
+    execute: async (args) => {
+      const scenesRes = await gql(
+        `query Scenes($scriptId: ID!) { creativeScriptScenes(scriptId: $scriptId) { ${SCENE_FIELDS} } }`,
+        { scriptId: String(args.scriptId) },
+      );
+      const scenes = scenesRes.creativeScriptScenes || [];
+      const rendered = scenes.filter((s) => s.renderedAssetId);
+      if (!rendered.length) {
+        throw new Error('Render scenes before stitching. Ready clips only. Call studio_render_scenes per sceneId.');
+      }
+      const clips = rendered.map((scene, orderIndex) => {
+        const dur = Math.max(0.5, Number(scene.durationSeconds) || 6);
+        return {
+          sceneId: Number(scene.id),
+          inSec: 0,
+          outSec: dur,
+          orderIndex,
+          assetId: Number(scene.renderedAssetId),
+        };
+      });
+      const last = rendered[rendered.length - 1];
+      const warning = /end card/i.test(String(last?.label || '')) && Number(last?.durationSeconds) > 4
+        ? `End card is ${last.durationSeconds}s. Keep it at 4 seconds or less.`
+        : null;
+      const exportRes = await gql(
+        `mutation Timeline($scriptId: ID!, $input: CreativeTimelineInput!) { renderCreativeTimeline(scriptId: $scriptId, input: $input) { id status outputUrl progress errorMessage creditsUsed } }`,
+        {
+          scriptId: String(args.scriptId),
+          input: {
+            clips,
+            qualityTier: args.qualityTier || 'standard',
+            includeVoiceover: args.includeVoiceover === true,
+            burnOverlays: true,
+          },
+        },
+        true,
+      );
+      return { ...exportRes, warning, clipCount: clips.length };
+    },
+  },
 ];
+
+export const studioTools = RAW_STUDIO_TOOLS.map(wrapCreditTool);

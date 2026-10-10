@@ -13,16 +13,32 @@ export const commerceTools = [
   },
   {
     name: 'search_catalog',
-    description: 'Search products in this channel catalog.',
+    description: 'Search products in this channel catalog. Pass query or term for chameleonSearch. Pass sku for an exact variant lookup. Call use_store first when the key covers more than one store.',
     inputSchema: {
       type: 'object',
-      properties: { term: { type: 'string' }, take: { type: 'number' } },
-      required: ['term'],
+      properties: {
+        query: { type: 'string' },
+        term: { type: 'string' },
+        sku: { type: 'string' },
+        take: { type: 'number' },
+      },
     },
-    execute: (args) => adminGraphql(
-      `query SearchCatalog($term: String, $take: Int) { products(options: { take: $take, filter: { name: { contains: $term } } }) { totalItems items { id name slug enabled } } }`,
-      { term: String(args.term || ''), take: Math.min(Number(args.take) || 20, 50) },
-    ),
+    execute: (args) => {
+      const sku = String(args.sku || '').trim();
+      const term = String(args.query || args.term || '').trim();
+      const take = Math.min(Number(args.take) || 20, 50);
+      if (sku) {
+        return adminGraphql(
+          `query SearchSku($sku: String, $take: Int) { productVariants(options: { take: $take, filter: { sku: { contains: $sku } } }) { totalItems items { id sku name product { id name slug } } } }`,
+          { sku, take },
+        );
+      }
+      if (!term) throw new Error('Pass query, term, or sku.');
+      return adminGraphql(
+        `query SearchCatalog($term: String, $take: Int) { chameleonSearch(input: { term: $term, take: $take, groupByProduct: true }) { totalItems items { productId productName slug } } }`,
+        { term, take },
+      );
+    },
   },
   {
     name: 'inventory_stock',

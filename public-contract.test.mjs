@@ -81,6 +81,12 @@ test('README has logo, signup, install, secrets, and no internal jargon', () => 
   assert.match(readme, /Grok Build/);
   assert.match(readme, /Let's Succeed Together/);
   assert.match(readme, /grok plugin install lesuto\/lesuto-grok-plugin/);
+  assert.match(readme, /SECURITY\.md/);
+  assert.ok(existsSync(join(pluginRoot, 'SECURITY.md')));
+  const security = read('SECURITY.md');
+  assert.match(security, /LESUTO_AGENT_KEY/);
+  assert.equal(security.includes('lsk_live_YOUR_KEY'), false);
+  assert.equal(security.includes('lsk_live_'), false);
   assert.match(readme, /60/);
   assert.match(readme, /integration credit/);
   for (const banned of [

@@ -175,6 +175,10 @@ Reads cost **1** integration credit. Writes cost **2**. `account_overview` is on
 
 Network: this process only calls `https://api.lesuto.com/api/v3/admin/graphql` (stdio MCP, no install scripts, no remote shell). `lesuto_graphql` is queries only. Cancel/complete/no-show and buying a shipping label require `confirm: true`.
 
+## Security
+
+This repo is public. Never commit a live `LESUTO_AGENT_KEY`, channel token, or private key file. See [SECURITY.md](SECURITY.md).
+
 ## Tests
 
 From this directory, with Node.js 20 or newer. No network and no live keys:

@@ -21,6 +21,7 @@ export const FORBIDDEN_BASENAMES = new Set([
   'service-account.json',
   'id_rsa',
   'id_ed25519',
+  '.npmrc',
 ]);
 
 export const FORBIDDEN_EXTENSIONS = new Set(['.pem', '.p12', '.pfx', '.key']);
@@ -30,6 +31,7 @@ export const PUBLIC_COPY_REL = [
   'plugin.json',
   '.grok-plugin/plugin.json',
   'LICENSE',
+  'SECURITY.md',
 ];
 
 export const PUBLIC_COPY_BANNED = [
@@ -48,6 +50,8 @@ export const PUBLIC_COPY_BANNED = [
   'staging-admin.lesuto.com',
   'Golden Template',
   'Cloud SQL',
+  'LESUTO_GROK_PLUGIN_DEPLOY_KEY',
+  'chameleon-admin',
 ];
 
 export function houseSlugs() {

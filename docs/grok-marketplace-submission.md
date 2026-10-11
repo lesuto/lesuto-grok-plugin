@@ -24,7 +24,7 @@ git ls-remote https://github.com/lesuto/lesuto-grok-plugin.git HEAD
   "source": {
     "source": "url",
     "url": "https://github.com/lesuto/lesuto-grok-plugin.git",
-    "sha": "df301b1d57e0ecf6e2cfacff7e2e662e91aa9087"
+    "sha": "34d8ccab2958255f7a3a4e3568e27c54b97f4358"
   },
   "homepage": "https://www.lesuto.com/integrations/grok-agent",
   "keywords": ["lesuto", "lesuto connect", "lesuto hub", "lesuto seller"],
@@ -32,7 +32,7 @@ git ls-remote https://github.com/lesuto/lesuto-grok-plugin.git HEAD
 }
 ```
 
-Replace the `sha` with `git ls-remote https://github.com/lesuto/lesuto-grok-plugin.git HEAD` immediately before the xAI PR. Public HEAD when this packet was written: `df301b1d57e0ecf6e2cfacff7e2e662e91aa9087`. Not a branch. Not a tag.
+Replace the `sha` with `git ls-remote https://github.com/lesuto/lesuto-grok-plugin.git HEAD` immediately before the xAI PR. Public HEAD when this packet was written: `34d8ccab2958255f7a3a4e3568e27c54b97f4358`. Not a branch. Not a tag.
 
 ## After forking xai-org/plugin-marketplace
 

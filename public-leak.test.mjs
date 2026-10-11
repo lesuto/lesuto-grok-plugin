@@ -95,11 +95,18 @@ test('publish script only mirrors the plugin folder and drops secret files', () 
   assert.match(sh, /SRC="\$REPO_ROOT\/lesuto-grok-plugin"/);
   assert.match(sh, /rsync -a --delete/);
   assert.match(sh, /"\$SRC\/" "\$WORKDIR\/repo\/"/);
-  for (const exclude of ['.git', 'node_modules', '.env', '.env.*', '*.pem', '*.key']) {
+  for (const exclude of ['.git', 'node_modules', '.env', '.env.*', '*.pem', '*.key', 'credentials.json']) {
     assert.ok(sh.includes(`--exclude '${exclude}'`), exclude);
   }
   assert.doesNotMatch(sh, /chameleon-admin/);
   assert.doesNotMatch(sh, /LESUTO_AGENT_KEY=/);
+});
+
+test('gitignore blocks env files and private keys from the public packet', () => {
+  const gitignore = readFileSync(join(pluginRoot, '.gitignore'), 'utf8');
+  for (const line of ['.env', '.env.*', '*.pem', '*.key', 'credentials.json', 'id_rsa']) {
+    assert.ok(gitignore.split('\n').includes(line), line);
+  }
 });
 
 test('demo channel tokens used in tests are on the allowlist', () => {

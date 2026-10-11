@@ -78,8 +78,8 @@ The key cannot change team, company membership, or billing. Those stay in Comman
 
 ## Turn on AI Agent Access
 
-1. Command Center → **Integrations** → activate **AI Agent Access**. Social Studio also opens that listing: **Automate with AI Agent Access** sits left of Store.
-2. Open **Teams → AI Agent Access** (or Organizations → AI Agent Access, or Lesuto Seller → **AI Agent Access**).
+1. Command Center → **Integrations** → activate **AI Agent Access** on each store you want to cover. Social Studio also opens that listing: **Automate with AI Agent Access** sits left of Store.
+2. Open **Teams → AI Agent Access** for this store (after activate), **Organizations → AI Agent Access** for the company (always in Organizations), or Lesuto Seller → **AI Agent Access**.
 
 ## Mint the key
 

@@ -11,3 +11,4 @@ description: Read and manage orders on this Lesuto Seller channel. Use for lesut
 - Use `create_shipment` then `buy_shipping_label` (confirm true) to buy postage. That spends money.
 - Never refund, cancel, or change prices from Grok.
 - Never mint or revoke agent keys from Grok.
+- This plugin is store work only. It cannot read Lesuto staff CRM, leads, or outreach.

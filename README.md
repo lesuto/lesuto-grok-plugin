@@ -6,7 +6,7 @@
 
 <p align="center"><strong>Ask how all your stores are doing. Drill into one when you need to.</strong></p>
 
-This plugin lets [Grok Build](https://x.ai/build) (and Cursor, Claude Desktop, ChatGPT actions, or any MCP or HTTP client) work **your** Lesuto merchant and supplier stores. It is not a Lesuto staff login.
+This plugin lets [Grok Build](https://x.ai/build) (and Cursor, Claude Desktop, ChatGPT actions, or any MCP or HTTP client) work **your** Lesuto merchant and supplier stores. It is not a Lesuto staff login. It cannot read Lesuto staff CRM, leads, or outreach. A merchant key and a staff CRM token cannot be used together.
 
 Repository: [github.com/lesuto/lesuto-grok-plugin](https://github.com/lesuto/lesuto-grok-plugin)
 
@@ -33,7 +33,7 @@ Grok acts as **you** on the stores that key covers. Start with the big picture, 
 - Buy a shipping label after you confirm
 - Hub store status, site status, posts
 - Store blog: draft, update, publish
-- Social Studio: growth lines, campaigns, social posts, campaign video. Same Creative Studio path as admin (characters, look stills with numbered photo URLs so you can pick, voice pick, briefs, scripts, stills, 1080p, brand kit). Prefer stepwise `studio_*` tools; `studio_produce_video` then `studio_job_status` is the shortcut. Voice cloning, OAuth, and billing stay with a person. Look stills use membership AI credits (50 each). Agent calls use integration credits (1 read / 2 write).
+- Social Studio: growth lines, campaigns, social posts, campaign video. Same Creative Studio path as admin (characters, look stills with numbered photo URLs so you can pick, voice pick, briefs, scripts, listing-photo start and end frames, stills, stitch overlays, 1080p, brand kit). Prefer stepwise `studio_*` tools; `studio_produce_video` then `studio_job_status` is the shortcut. Job `outputUrl` must be an MP4, not a `.mp4.png` poster. Optional 3D mesh is `studio_reconstruct_3d` when they asked for a GLB. Voice cloning, OAuth, and billing stay with a person. Look stills use membership AI credits (50 each). Listing keyframes are 12 each. Agent calls use integration credits (1 read / 2 write).
 - `list_stores` and `use_store` when you want one merchant or supplier store (L1, L2, or the store name)
 - `lesuto_graphql` for extra reads. Writes go through named tools.
 
@@ -141,7 +141,9 @@ LESUTO_CHANNEL_TOKEN=merchant_your-slug_admin
 - Draft a Social Studio campaign and show the credit estimate.
 - Produce a 15 second campaign video for this Hub store, then tell me when the job finishes.
 - Create a character, show me the numbered look photos, then lock the look I pick.
-- Search voices, lock one on the character, then render the timeline with brand kit overlays.
+- Search voices, lock one on the character, assign listing photos as start and end frames, then render the timeline with brand kit overlays.
+- Put talent seated in the chair: set the scene action, regenerate stills with force, then render. Swap scene order, then stitch.
+- Build a 3D GLB from this product's listing photos only if I asked for a mesh.
 
 Skills in `skills/` (`lesuto-connect`, `lesuto-catalog`, `lesuto-orders`, `lesuto-analytics`, `lesuto-organizations`, `lesuto-social`) tell the agent which tool to start with.
 

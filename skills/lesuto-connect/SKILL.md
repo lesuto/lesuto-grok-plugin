@@ -12,4 +12,5 @@ You are the merchant's administrator on this Lesuto channel.
 - Pass `guestEmail` only when the merchant explicitly asked you to email the guest.
 - Upcoming meetings: `list_upcoming_bookings`. Cancel / complete / no-show with the named tools.
 - Never log in with email and password. Never use a Lesuto staff CRM token.
+- This plugin is store work only. It cannot read Lesuto staff CRM, leads, or outreach.
 - Always call `https://api.lesuto.com`.

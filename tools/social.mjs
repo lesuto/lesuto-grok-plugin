@@ -23,11 +23,36 @@ Workflow:
 1. Read brand voice, connections, and growth lines.
 2. Draft a growth line with social_growth_line_draft if none exists, then save after the merchant would review it.
 3. Draft a campaign with social_campaign_draft, show the credit estimate, then save, reserve, and arm.
-4. Call studio_video_plan before spend. For a written script, use stepwise studio_* tools (character, look, voice lock, brief, script, scenes, cheap keyframes, then render). studio_produce_video is the hands-free shortcut. Quote AI credits, then confirm true. Call studio_stores when this merchant has more than one Hub store. Do not pass list_stores L-codes as storeId. Poll studio_job_status for the MP4 outputUrl. Length snaps to 6, 8, 15, or 30 seconds. Voiceover is off unless includeAudio is true.
-5. Stop after stills and after the MP4 so the merchant can approve. Schedule posts with social_post_schedule and mediaItems (the MP4 URL) at an exact ISO scheduledAt. They land in the review queue. Resolve with studio_review_resolve.
-6. Never work around a safety block, never turn the kill switch off, never buy credits, never connect OAuth accounts. Never call ElevenLabs directly. Voices go through studio_voices_search and studio_character_lock_voice.
+4. Call studio_video_plan before spend. For a written product ad, use stepwise studio_* tools: character, look, voice lock, brief with productId, script, then either listing-photo frames or talent restage. studio_produce_video is the hands-free shortcut. Quote AI credits, then confirm true. Call studio_stores when this merchant has more than one Hub store. Do not pass list_stores L-codes as storeId. Use the merchant store (L1), not the supplier channel. Poll studio_job_status. Length snaps to 6, 8, 15, or 30 seconds. Voiceover is off unless includeAudio is true.
+5. Listing-orbit ads assign studio_catalog_angles as keyframeAssetId / endKeyframeAssetId. Talent-in-product ads set action (adult seated in the chair), do not paste listing photos, then studio_keyframes with force true or studio_keyframe_regenerate. Do not put the SKU title in a motion prompt. On-screen copy is only the headline and CTA the merchant wrote. Burn that on at stitch (overlays on). Do not ask the motion model to paint letters. Swap beats with studio_scenes_reorder (every scene id once) or studio_stitch_from_script sceneIds.
+6. outputUrl must be an MP4. A URL ending in .mp4.png is a broken document-icon poster, not the clip. Do not show it as the video and do not put it in mediaItems. Wait for stitch outputUrl or the asset source MP4.
+7. studio_reconstruct_3d is an optional GLB mesh (150 credits standard TRELLIS, 350 premium Hunyuan). Listing photos are enough for an accurate SKU clip. Do not run 3D unless they asked for a 3D object. 3D is not USDZ and is not fed into Luma.
+8. Stop after stills and after the MP4 so the merchant can approve. Schedule posts with social_post_schedule and mediaItems (the MP4 URL) at an exact ISO scheduledAt. They land in the review queue. Resolve with studio_review_resolve.
+9. Never work around a safety block, never turn the kill switch off, never buy credits, never connect OAuth accounts. Never call ElevenLabs directly. Voices go through studio_voices_search and studio_character_lock_voice.
 
 Credits: each AI draft and generation spends AI credits on this channel, plus integration credits per GraphQL write.`;
+
+/** Job posters named *.mp4.png are Sharp document icons, not playable video. */
+export function annotateStudioJobMedia(payload) {
+  const job = payload?.aiMediaJobStatus || payload;
+  const result = job?.result || {};
+  const outputUrl = String(result.outputUrl || '');
+  const stepPreviews = Array.isArray(result.steps) ? result.steps.map((s) => String(s?.preview || '')) : [];
+  const looksLikePoster = (url) => /\.mp4\.png(\?|$)/i.test(url);
+  const looksLikeMp4 = (url) => /\.mp4(\?|$)/i.test(url) && !looksLikePoster(url);
+  const playableOutputUrl = looksLikeMp4(outputUrl) ? outputUrl : null;
+  const posterIsNotTheVideo = looksLikePoster(outputUrl) || stepPreviews.some(looksLikePoster);
+  return {
+    ...payload,
+    playableOutputUrl,
+    posterIsNotTheVideo,
+    mediaNote: playableOutputUrl
+      ? 'Use playableOutputUrl / outputUrl as the MP4. Do not schedule a .mp4.png poster.'
+      : posterIsNotTheVideo
+        ? 'A .mp4.png URL is a broken document-icon still, not the video. Do not show it as the clip. Wait for stitch outputUrl ending in .mp4.'
+        : undefined,
+  };
+}
 
 const RAW_SOCIAL_TOOLS = [
   {
@@ -243,7 +268,7 @@ const RAW_SOCIAL_TOOLS = [
   },
   {
     name: 'studio_produce_video',
-    description: 'Start an async Social Studio video job (brief to stitched cut). Returns a job id. Poll studio_job_status. Duration snaps to 6, 8, 15, or 30 seconds. Merchant channels with more than one Hub store need storeId from studio_stores. Voiceover stays off unless includeAudio is true, and includeAudio needs a character with a locked voice.',
+    description: 'Start an async Social Studio video job (brief to stitched cut). Pass productId so listing photos lock the SKU. Poll studio_job_status for an MP4 outputUrl, never a .mp4.png poster. Duration snaps to 6, 8, 15, or 30 seconds. Merchant channels with more than one Hub store need storeId from studio_stores. Voiceover stays off unless includeAudio is true, and includeAudio needs a character with a locked voice.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -283,16 +308,19 @@ const RAW_SOCIAL_TOOLS = [
   },
   {
     name: 'studio_job_status',
-    description: 'Poll an async media job started by studio_produce_video or social_generate_video.',
+    description: 'Poll an async media job (produce, keyframes, scene render, 3D). Use outputUrl only when it is an MP4. A .mp4.png URL is a broken poster, not the clip.',
     inputSchema: {
       type: 'object',
       properties: { jobId: { type: 'string' } },
       required: ['jobId'],
     },
-    execute: (args) => adminGraphql(
-      `query JobStatus($jobId: ID!) { aiMediaJobStatus(jobId: $jobId) { id state progress result { success totalCreditsUsed errorMessage outputUrl steps { preview success error } } duration } }`,
-      { jobId: String(args.jobId) },
-    ),
+    execute: async (args) => {
+      const payload = await adminGraphql(
+        `query JobStatus($jobId: ID!) { aiMediaJobStatus(jobId: $jobId) { id state progress result { success totalCreditsUsed errorMessage outputUrl steps { preview success error } } duration } }`,
+        { jobId: String(args.jobId) },
+      );
+      return annotateStudioJobMedia(payload);
+    },
   },
   {
     name: 'studio_launch_campaign',

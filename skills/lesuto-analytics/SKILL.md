@@ -10,3 +10,4 @@ description: Read this Lesuto channel's dashboard numbers. Use for how the store
 - For one store, use `channel_analytics` after `use_store`. That is the Command Center dashboard: revenue, orders, average order value, commission, supplier payout, return rate, payouts, and top products.
 - Every key can read those numbers. Use `lesuto_graphql` for extra reads such as `productAnalytics` or `campaignAnalytics`.
 - Summarize in the merchant's language. Do not invent counts. If a field is zero, say so.
+- This plugin is store work only. It cannot read Lesuto staff CRM, leads, or outreach.

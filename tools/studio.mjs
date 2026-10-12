@@ -5,6 +5,7 @@
  */
 import { adminGraphql } from '../lib/graphql.mjs';
 import { wrapCreditTool } from '../lib/credit-confirm.mjs';
+import { orderScenesForStitch } from '../lib/studio-clips.mjs';
 
 const SCENE_FIELDS = `id order label subject action cameraMove lighting durationSeconds isOpeningHook voiceover onScreenText status keyframeAssetId keyframePreviewUrl endKeyframeAssetId endKeyframePreviewUrl renderedAssetId renderedPreviewUrl`;
 const SCRIPT_FIELDS = `id briefId title body hookLine ctaLine endCard { lines durationSeconds } rankScore variantIndex status complianceFlags aiGenerated beats { order label voiceover onScreenText visual durationSeconds }`;
@@ -237,7 +238,7 @@ const RAW_STUDIO_TOOLS = [
   },
   {
     name: 'studio_scene_update',
-    description: 'Edit one scene: action, cameraMove, lighting, voiceover, onScreenText, duration.',
+    description: 'Edit one scene: action, cameraMove, lighting, voiceover, onScreenText, listing start/end asset ids, duration. For talent in the product, set action (adult seated in the chair) and do not assign listing photos. On-screen text is burned on at stitch, not painted by the motion model.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -248,6 +249,8 @@ const RAW_STUDIO_TOOLS = [
         durationSeconds: { type: 'number' },
         voiceover: { type: 'string' },
         onScreenText: { type: 'string' },
+        keyframeAssetId: { type: 'number' },
+        endKeyframeAssetId: { type: 'number' },
         label: { type: 'string' },
         subject: { type: 'string' },
       },
@@ -266,8 +269,27 @@ const RAW_STUDIO_TOOLS = [
           durationSeconds: args.durationSeconds,
           voiceover: args.voiceover,
           onScreenText: args.onScreenText,
+          keyframeAssetId: args.keyframeAssetId ?? undefined,
+          endKeyframeAssetId: args.endKeyframeAssetId ?? undefined,
         },
       },
+      true,
+    ),
+  },
+  {
+    name: 'studio_scenes_reorder',
+    description: 'Swap storyboard order. Pass every scene id for the script once. First id plays first. The Hook badge stays on the original hook scene. Then stitch with studio_stitch_from_script sceneIds in the same order.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        scriptId: { type: 'string' },
+        sceneIds: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['scriptId', 'sceneIds'],
+    },
+    execute: (args) => gql(
+      `mutation ReorderScenes($scriptId: ID!, $sceneIds: [ID!]!) { reorderCreativeScenes(scriptId: $scriptId, sceneIds: $sceneIds) { ${SCENE_FIELDS} } }`,
+      { scriptId: String(args.scriptId), sceneIds: (args.sceneIds || []).map(String) },
       true,
     ),
   },
@@ -281,6 +303,15 @@ const RAW_STUDIO_TOOLS = [
     ),
   },
   {
+    name: 'studio_catalog_angles',
+    description: 'List listing photos for a product. Assign consecutive angles as keyframeAssetId and endKeyframeAssetId on studio_scene_update so motion stays on the SKU. 3D is a separate optional GLB, not required for this.',
+    inputSchema: { type: 'object', properties: { productId: { type: 'string' } }, required: ['productId'] },
+    execute: (args) => gql(
+      `query CatalogAngles($productId: ID!) { creativeCatalogAngles(productId: $productId) { assetId previewUrl } }`,
+      { productId: String(args.productId) },
+    ),
+  },
+  {
     name: 'studio_scene_quality',
     description: 'Quality scores for a script storyboard.',
     inputSchema: { type: 'object', properties: { scriptId: { type: 'string' } }, required: ['scriptId'] },
@@ -291,30 +322,26 @@ const RAW_STUDIO_TOOLS = [
   },
   {
     name: 'studio_keyframes',
-    description: 'Generate cheap stills. Pass sceneId for one beat (sync). Without sceneId this enqueues a job. Poll studio_job_status. Skip-if-ready stills are free. Stop and show preview URLs before paying for motion.',
+    description: 'Enqueue stills. Pass sceneId for one beat. Listing-photo start/end frames are free (skip-if-ready). Talent in the product needs force true (about 12 AI credits) so IP-Adapter restages the SKU instead of animating the empty listing still. Without sceneId this charges every scene. Poll studio_job_status. Use the merchant store (L1), not the supplier channel. Stop and show still URLs before paying for motion. JPEG/PNG stills only; ignore any .mp4.png poster.',
     inputSchema: {
       type: 'object',
       properties: { scriptId: { type: 'string' }, sceneId: { type: 'string' }, which: { type: 'string' }, force: { type: 'boolean' } },
       required: ['scriptId'],
     },
-    execute: (args) => {
-      if (args.sceneId) {
-        return gql(
-          `mutation Keyframes($scriptId: ID!, $sceneId: ID, $which: String, $force: Boolean) { generateCreativeKeyframes(scriptId: $scriptId, sceneId: $sceneId, which: $which, force: $force) { ${SCENE_FIELDS} } }`,
-          { scriptId: String(args.scriptId), sceneId: String(args.sceneId), which: args.which || null, force: args.force === true },
-          true,
-        );
-      }
-      return gql(
-        `mutation EnqueueKeyframes($scriptId: ID!, $which: String, $force: Boolean) { enqueueCreativeKeyframes(scriptId: $scriptId, which: $which, force: $force) { jobId estimatedMs } }`,
-        { scriptId: String(args.scriptId), which: args.which || null, force: args.force === true },
-        true,
-      );
-    },
+    execute: (args) => gql(
+      `mutation EnqueueKeyframes($scriptId: ID!, $sceneId: ID, $which: String, $force: Boolean) { enqueueCreativeKeyframes(scriptId: $scriptId, sceneId: $sceneId, which: $which, force: $force) { jobId estimatedMs } }`,
+      {
+        scriptId: String(args.scriptId),
+        sceneId: args.sceneId ? String(args.sceneId) : null,
+        which: args.which || null,
+        force: args.force === true,
+      },
+      true,
+    ),
   },
   {
     name: 'studio_keyframe_regenerate',
-    description: 'Regenerate the start or end still for one scene.',
+    description: 'Regenerate the start or end still for one scene (force). Use this when they want talent sitting in the product after listing photos were already assigned. About 12 AI credits. which=start|end.',
     inputSchema: {
       type: 'object',
       properties: { scriptId: { type: 'string' }, sceneId: { type: 'string' }, which: { type: 'string' } },
@@ -328,26 +355,23 @@ const RAW_STUDIO_TOOLS = [
   },
   {
     name: 'studio_render_scenes',
-    description: 'Animate approved keyframes. Pass sceneId for one clip. Without sceneId this enqueues a job. Poll studio_job_status. quality=standard|hero. Ready clips are free.',
+    description: 'Enqueue motion from approved start and end stills. Pass sceneId for one clip. Without sceneId this charges every scene. Poll studio_job_status for an MP4 (never .mp4.png). quality=standard|hero. engine=luma is the cheap 5s path; cinema/hero is 1080p Veo. Ready clips are free. Use the merchant store (L1), not the supplier channel. Letters burn on at stitch, not in this clip.',
     inputSchema: {
       type: 'object',
       properties: { scriptId: { type: 'string' }, sceneId: { type: 'string' }, engine: { type: 'string' }, quality: { type: 'string' }, force: { type: 'boolean' } },
       required: ['scriptId'],
     },
-    execute: (args) => {
-      if (args.sceneId) {
-        return gql(
-          `mutation RenderScenes($scriptId: ID!, $sceneId: ID, $engine: String, $force: Boolean, $quality: String) { renderCreativeScenes(scriptId: $scriptId, sceneId: $sceneId, engine: $engine, force: $force, quality: $quality) { creditsUsedEstimate renderedAssetIds quality { sceneId pass score reasons } scenes { ${SCENE_FIELDS} } } }`,
-          { scriptId: String(args.scriptId), sceneId: String(args.sceneId), engine: args.engine || null, force: args.force === true, quality: args.quality || null },
-          true,
-        );
-      }
-      return gql(
-        `mutation EnqueueRenders($scriptId: ID!, $engine: String, $force: Boolean, $quality: String) { enqueueCreativeSceneRenders(scriptId: $scriptId, engine: $engine, force: $force, quality: $quality) { jobId estimatedMs } }`,
-        { scriptId: String(args.scriptId), engine: args.engine || null, force: args.force === true, quality: args.quality || null },
-        true,
-      );
-    },
+    execute: (args) => gql(
+      `mutation EnqueueRenders($scriptId: ID!, $sceneId: ID, $engine: String, $force: Boolean, $quality: String) { enqueueCreativeSceneRenders(scriptId: $scriptId, sceneId: $sceneId, engine: $engine, force: $force, quality: $quality) { jobId estimatedMs } }`,
+      {
+        scriptId: String(args.scriptId),
+        sceneId: args.sceneId ? String(args.sceneId) : null,
+        engine: args.engine || null,
+        force: args.force === true,
+        quality: args.quality || null,
+      },
+      true,
+    ),
   },
   {
     name: 'studio_render_storyboard',
@@ -393,7 +417,7 @@ const RAW_STUDIO_TOOLS = [
   },
   {
     name: 'studio_export_status',
-    description: 'Poll timeline exports. Read outputUrl when status is completed. Show errorMessage as written.',
+    description: 'Poll timeline exports. Read outputUrl when status is completed and the URL is an MP4. Ignore .mp4.png posters. Show errorMessage as written.',
     inputSchema: { type: 'object', properties: { scriptId: { type: 'string' } }, required: ['scriptId'] },
     execute: (args) => gql(
       `query Exports($scriptId: ID!) { creativeTimelineExports(scriptId: $scriptId) { id status outputUrl progressStage progress errorMessage creditsUsed } }`,
@@ -696,7 +720,7 @@ const RAW_STUDIO_TOOLS = [
   },
   {
     name: 'studio_video_plan',
-    description: 'Quote a video path before spend. Returns idea prompts, Hands-free vs Guided, first-film vs template reuse, and motion cost before render.',
+    description: 'Quote a video path before spend. Returns idea prompts, Hands-free vs Guided, first-film vs template reuse, and motion cost before render. Guided product ads use listing photos as start and end frames; 3D is not in this quote.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -725,7 +749,7 @@ const RAW_STUDIO_TOOLS = [
         ideaPrompts: [
           'Show the product in the real room it belongs in, then a close detail, then the CTA.',
           'Walk through one benefit per beat. Keep the voiceover short enough to read on screen.',
-          'Open on a catalog photo if you have one, then cut to lifestyle B-roll without forcing the SKU into every frame.',
+          'Open on listing photo A, orbit to listing photo B, then burn the merchant headline at stitch. Do not letter the SKU name.',
         ],
         modes: {
           handsFree: 'studio_produce_video. One async job, brief-to-stitch. Use when they gave a short idea, not a finished script.',
@@ -743,11 +767,12 @@ const RAW_STUDIO_TOOLS = [
   },
   {
     name: 'studio_stitch_from_script',
-    description: 'Stitch rendered scenes for a script. Voiceover stays off unless includeVoiceover is true and a voice is locked. Warns if the end card is over 4 seconds.',
+    description: 'Stitch rendered scenes for a script. Pass sceneIds to swap clip order. Overlays burn merchant on-screen text and CTA here. Voiceover stays off unless includeVoiceover is true and a voice is locked. Warns if the end card is over 4 seconds. The result URL must be an MP4.',
     inputSchema: {
       type: 'object',
       properties: {
         scriptId: { type: 'string' },
+        sceneIds: { type: 'array', items: { type: 'string' } },
         includeVoiceover: { type: 'boolean' },
         qualityTier: { type: 'string' },
       },
@@ -759,21 +784,9 @@ const RAW_STUDIO_TOOLS = [
         { scriptId: String(args.scriptId) },
       );
       const scenes = scenesRes.creativeScriptScenes || [];
-      const rendered = scenes.filter((s) => s.renderedAssetId);
-      if (!rendered.length) {
-        throw new Error('Render scenes before stitching. Ready clips only. Call studio_render_scenes per sceneId.');
-      }
-      const clips = rendered.map((scene, orderIndex) => {
-        const dur = Math.max(0.5, Number(scene.durationSeconds) || 6);
-        return {
-          sceneId: Number(scene.id),
-          inSec: 0,
-          outSec: dur,
-          orderIndex,
-          assetId: Number(scene.renderedAssetId),
-        };
-      });
-      const last = rendered[rendered.length - 1];
+      const clips = orderScenesForStitch(scenes, args.sceneIds);
+      const lastId = clips[clips.length - 1]?.sceneId;
+      const last = scenes.find((s) => Number(s.id) === Number(lastId));
       const warning = /end card/i.test(String(last?.label || '')) && Number(last?.durationSeconds) > 4
         ? `End card is ${last.durationSeconds}s. Keep it at 4 seconds or less.`
         : null;

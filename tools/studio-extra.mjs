@@ -210,6 +210,33 @@ const RAW_STUDIO_EXTRA_TOOLS = [
       true,
     ),
   },
+  {
+    name: 'studio_reconstruct_3d',
+    description: 'Optional exportable GLB from listing photos. Not required for SKU video. Luma does not read the mesh. Poll studio_job_status. Standard TRELLIS is 150 AI credits; premium Hunyuan is 350. Not USDZ. Pass productId so catalog photos are used.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        productAssetId: { type: 'string' },
+        productAssetIds: { type: 'array', items: { type: 'string' } },
+        productId: { type: 'string' },
+        tier: { type: 'string' },
+        removeBackground: { type: 'boolean' },
+      },
+    },
+    execute: (args) => gql(
+      `mutation aiReconstruct3D($input: Reconstruct3DInput!) { aiReconstruct3D(input: $input) { jobId estimatedMs } }`,
+      {
+        input: {
+          productAssetId: args.productAssetId ? String(args.productAssetId) : null,
+          productAssetIds: Array.isArray(args.productAssetIds) ? args.productAssetIds.map(String) : null,
+          productId: args.productId ? String(args.productId) : null,
+          tier: args.tier === 'premium' ? 'premium' : 'standard',
+          removeBackground: args.removeBackground === true,
+        },
+      },
+      true,
+    ),
+  },
 ];
 
 export const studioExtraTools = RAW_STUDIO_EXTRA_TOOLS.map(wrapCreditTool);

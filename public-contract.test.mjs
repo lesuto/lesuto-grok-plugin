@@ -78,6 +78,9 @@ test('README has logo, signup, install, secrets, and no internal jargon', () => 
   assert.match(readme, /AI Agent Access/);
   assert.match(readme, /Social Studio/);
   assert.match(readme, /numbered look photos|look stills with numbered photo URLs/);
+  assert.match(readme, /listing-photo start and end frames/);
+  assert.match(readme, /\.mp4\.png/);
+  assert.match(readme, /studio_reconstruct_3d/);
   assert.match(readme, /Grok Build/);
   assert.match(readme, /Let's Succeed Together/);
   assert.match(readme, /grok plugin install lesuto\/lesuto-grok-plugin/);

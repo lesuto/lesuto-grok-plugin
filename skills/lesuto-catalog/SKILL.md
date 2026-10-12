@@ -10,3 +10,4 @@ description: Search and inspect this channel catalog on Lesuto Seller. Use for l
 - Use `adjust_variant_stock` to set stock. That does not change price.
 - Use `store_status` to confirm which administrator and channel you are acting as.
 - Stay on this channel. Do not try other-channel IDs or platform staff operations.
+- This plugin is store work only. It cannot read Lesuto staff CRM, leads, or outreach.

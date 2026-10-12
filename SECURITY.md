@@ -6,7 +6,7 @@ This repository is public. It is the Grok Build plugin source. It must never con
 
 - Call `https://api.lesuto.com/api/v3/admin/graphql` only (or `https://staging-api.lesuto.com` for Lesuto staging).
 - Send `LESUTO_AGENT_KEY` and an optional store hint as request headers. Never put them in the URL, logs, or chat.
-- Run GraphQL reads through `lesuto_graphql`. Writes go through named tools. Staff CRM, key minting, refunds, team, billing, and MFA stay blocked.
+- Run GraphQL reads through `lesuto_graphql`. Writes go through named tools. Staff CRM, key minting, refunds, team, billing, and MFA stay blocked. Staff CRM is a separate founder-only connector. Merchant keys cannot call it. Do not put a staff CRM token in this plugin.
 
 ## How merchants keep a key safe
 

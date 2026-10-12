@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { basename, extname, join, relative } from 'node:path';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { isBinaryPluginFile, pluginRoot, walkPluginFiles } from './test/helpers.mjs';
@@ -15,6 +16,15 @@ import {
 } from './test/public-leak-patterns.mjs';
 
 const rel = (abs) => relative(pluginRoot, abs);
+
+function isGitIgnored(abs) {
+  try {
+    execFileSync('git', ['-C', pluginRoot, 'check-ignore', '-q', '--', abs], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function publishedTextFiles() {
   return walkPluginFiles().filter((p) => !isBinaryPluginFile(p));
@@ -43,9 +53,11 @@ test('scanner flags real store tokens and ignores demo placeholders', () => {
 test('public plugin packet has no live keys, private key files, or house store tokens', () => {
   const leaks = [];
   for (const name of FORBIDDEN_BASENAMES) {
-    if (existsSync(join(pluginRoot, name))) leaks.push(`forbidden file ${name}`);
+    const abs = join(pluginRoot, name);
+    if (existsSync(abs) && !isGitIgnored(abs)) leaks.push(`forbidden file ${name}`);
   }
   for (const abs of walkPluginFiles()) {
+    if (isGitIgnored(abs)) continue;
     const base = basename(abs);
     const ext = extname(abs).toLowerCase();
     if (FORBIDDEN_BASENAMES.has(base)) leaks.push(`${rel(abs)}: forbidden filename`);

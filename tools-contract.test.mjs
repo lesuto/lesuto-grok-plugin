@@ -175,6 +175,9 @@ test('skills cover Connect, catalog, orders, analytics, organizations, and Socia
     assert.match(skill, /api\.lesuto\.com|Lesuto/);
     assert.doesNotMatch(skill, /issueAgentAccessKey/);
     assert.doesNotMatch(skill, /CRM_AGENT_TOKEN/);
+    assert.doesNotMatch(skill, /crm_/);
+    assert.doesNotMatch(skill, /mcp\/crm-agent/);
+    assert.match(skill, /staff CRM|store work only|merchant/i);
   }
   const connect = readFileSync(join(dir, 'lesuto-connect/SKILL.md'), 'utf8');
   assert.match(connect, /list_meeting_types/);
@@ -198,6 +201,14 @@ test('skills cover Connect, catalog, orders, analytics, organizations, and Socia
   assert.match(social, /12 AI credits/);
   assert.match(social, /2 integration credits/);
   assert.match(social, /studio_keyframes/);
+  assert.match(social, /studio_catalog_angles/);
+  assert.match(social, /keyframeAssetId/);
+  assert.match(social, /studio_scenes_reorder/);
+  assert.match(social, /Talent in the product/);
+  assert.match(social, /studio_keyframe_regenerate/);
+  assert.match(social, /\.mp4\.png/);
+  assert.match(social, /studio_reconstruct_3d/);
+  assert.match(social, /Skip 3D unless they asked for a mesh/);
   assert.match(social, /Never call ElevenLabs/);
   assert.match(social, /search_catalog` for the product they named/);
   const houseNames = [
@@ -274,4 +285,82 @@ test('studio_produce_video snaps duration and can pass a hub store', async () =>
       await tool.execute({ prompt: 'teak chair', durationSeconds: 25, storeId: 12, confirm: true });
     });
   });
+});
+
+test('studio stitch clip order and talent restage tools exist', async () => {
+  const { orderScenesForStitch } = await import('./lib/studio-clips.mjs');
+  const clips = orderScenesForStitch([
+    { id: '1', renderedAssetId: 10, durationSeconds: 5, label: 'A' },
+    { id: '2', renderedAssetId: 20, durationSeconds: 6, label: 'B' },
+    { id: '3', renderedAssetId: 30, durationSeconds: 4, label: 'C' },
+  ], ['2']);
+  assert.equal(clips[0].sceneId, 2);
+  assert.equal(clips[1].sceneId, 1);
+  assert.equal(clips[2].sceneId, 3);
+  assert.throws(() => orderScenesForStitch([{ id: '1' }], ['1']), /Render scenes before stitching/);
+  assert.throws(
+    () => orderScenesForStitch([{ id: '1', renderedAssetId: 10, durationSeconds: 5 }], ['9']),
+    /no rendered clip/,
+  );
+  const { studioTools } = await import('./tools/studio.mjs');
+  const reorder = studioTools.find((t) => t.name === 'studio_scenes_reorder');
+  assert.ok(reorder);
+  assert.match(reorder.description, /Hook badge stays/);
+  assert.equal(/becomes the opening hook/i.test(reorder.description), false);
+  assert.match(studioTools.find((t) => t.name === 'studio_keyframe_regenerate').description, /sitting in the product/);
+});
+
+test('studio_job_status ignores .mp4.png posters', async () => {
+  const { annotateStudioJobMedia, socialTools, SOCIAL_OPERATOR_GUIDE } = await import('./tools/social.mjs');
+  assert.match(SOCIAL_OPERATOR_GUIDE, /studio_catalog_angles/);
+  assert.match(SOCIAL_OPERATOR_GUIDE, /\.mp4\.png/);
+  assert.match(SOCIAL_OPERATOR_GUIDE, /optional GLB/);
+  const flagged = annotateStudioJobMedia({
+    aiMediaJobStatus: {
+      result: {
+        outputUrl: 'https://cdn.lesuto.com/preview/0ab6b4bed7ff__preview.mp4.png',
+        steps: [{ preview: 'https://cdn.lesuto.com/preview/0ab6b4bed7ff__preview.mp4.png' }],
+      },
+    },
+  });
+  assert.equal(flagged.playableOutputUrl, null);
+  assert.equal(flagged.posterIsNotTheVideo, true);
+  assert.match(flagged.mediaNote, /document-icon/);
+  const playable = annotateStudioJobMedia({
+    aiMediaJobStatus: {
+      result: { outputUrl: 'https://cdn.lesuto.com/assets/clip.mp4', steps: [] },
+    },
+  });
+  assert.equal(playable.playableOutputUrl, 'https://cdn.lesuto.com/assets/clip.mp4');
+  assert.equal(playable.posterIsNotTheVideo, false);
+  const job = socialTools.find((t) => t.name === 'studio_job_status');
+  await withAgentEnv(async () => {
+    await withMockFetch(() => jsonResponse(200, {
+      data: {
+        aiMediaJobStatus: {
+          id: '9',
+          state: 'COMPLETED',
+          result: { outputUrl: 'https://cdn.lesuto.com/x.mp4.png', steps: [] },
+        },
+      },
+    }), async () => {
+      const out = await job.execute({ jobId: '9' });
+      assert.equal(out.posterIsNotTheVideo, true);
+      assert.equal(out.playableOutputUrl, null);
+    });
+  });
+});
+
+test('studio keyframes and scene renders enqueue with sceneId', () => {
+  const src = readFileSync(join(pluginRoot, 'tools/studio.mjs'), 'utf8');
+  assert.match(src, /enqueueCreativeKeyframes\(scriptId: \$scriptId, sceneId: \$sceneId/);
+  assert.match(src, /enqueueCreativeSceneRenders\(scriptId: \$scriptId, sceneId: \$sceneId/);
+  const extra = readFileSync(join(pluginRoot, 'tools/studio-extra.mjs'), 'utf8');
+  assert.match(extra, /name: 'studio_reconstruct_3d'/);
+  assert.match(extra, /Not required for SKU video/);
+  assert.match(readFileSync(join(pluginRoot, 'tools/studio.mjs'), 'utf8'), /studio_catalog_angles/);
+  const keyframes = src.slice(src.indexOf("name: 'studio_keyframes'"), src.indexOf("name: 'studio_keyframe_regenerate'"));
+  assert.equal(keyframes.includes('generateCreativeKeyframes'), false);
+  const renders = src.slice(src.indexOf("name: 'studio_render_scenes'"), src.indexOf("name: 'studio_render_storyboard'"));
+  assert.equal(renders.includes('renderCreativeScenes('), false);
 });

@@ -17,20 +17,52 @@ export function snapStudioDuration(raw) {
   }, STUDIO_DURATIONS[0]);
 }
 
+const CINEMA_NATIVE_AUDIO_ENGINES = new Set(['cinema', 'veo', 'veo-3.1', 'hero']);
+
+/** Veo is the only clip engine with generate_audio. includeAudio forces Cinema. */
+export function engineForNativeAudio(engine, includeAudio) {
+  const raw = engine != null && String(engine).trim() ? String(engine).trim() : null;
+  if (!includeAudio) return raw;
+  if (raw && CINEMA_NATIVE_AUDIO_ENGINES.has(raw.toLowerCase())) return raw;
+  return 'cinema';
+}
+
 export const SOCIAL_OPERATOR_GUIDE = `You operate Lesuto Social Studio as this merchant. Hub is a separate surface. Social Studio publishes to Instagram, Facebook, Pinterest, X, LinkedIn, TikTok, and YouTube, not to Hub.
 
 Workflow:
 1. Read brand voice, connections, and growth lines.
 2. Draft a growth line with social_growth_line_draft if none exists, then save after the merchant would review it.
 3. Draft a campaign with social_campaign_draft, show the credit estimate, then save, reserve, and arm.
-4. Call studio_video_plan before spend. For a written product ad, use stepwise studio_* tools: character, look, voice lock, brief with productId, script, then either listing-photo frames or talent restage. studio_produce_video is the hands-free shortcut. Quote AI credits, then confirm true. Call studio_stores when this merchant has more than one Hub store. Do not pass list_stores L-codes as storeId. Use the merchant store (L1), not the supplier channel. Poll studio_job_status. Length snaps to 6, 8, 15, or 30 seconds. Voiceover is off unless includeAudio is true.
-5. Listing-orbit ads assign studio_catalog_angles as keyframeAssetId / endKeyframeAssetId. Talent-in-product ads set action (adult seated in the chair), do not paste listing photos, then studio_keyframes with force true or studio_keyframe_regenerate. Do not put the SKU title in a motion prompt. On-screen copy is only the headline and CTA the merchant wrote. Burn that on at stitch (overlays on). Do not ask the motion model to paint letters. Swap beats with studio_scenes_reorder (every scene id once) or studio_stitch_from_script sceneIds.
+4. Call studio_video_plan before spend. For a written product ad, use stepwise studio_* tools: character, look, voice lock, brief with productId, script, then either listing-photo frames or talent restage. studio_produce_video is the hands-free shortcut. Quote AI credits, then confirm true. Call studio_stores when this merchant has more than one Hub store. Do not pass list_stores L-codes as storeId. Use the merchant store (L1), not the supplier channel. Poll studio_job_status. Length snaps to 6, 8, 15, or 30 seconds. studio_produce_video includeAudio is spoken VO (locked character voice). For Veo native sound design (ambiance and SFX, not a named song), use social_generate_video with includeAudio true. That uses Cinema. Do not name artists or commercial tracks.
+5. Each scene has stillMode: listing_orbit | lifestyle | establishing | end_card. listing_orbit assigns studio_catalog_angles as keyframeAssetId / endKeyframeAssetId. lifestyle generates the still (people using the SKU) and uses listing photos as IP-Adapter reference only. establishing has no SKU in frame (villa driveway). Set stillMode on studio_scene_update; do not infer it at generate time. studio_keyframes and studio_keyframe_regenerate enqueue a jobId; poll studio_job_status. Read errorMessage if status is failed. Do not put the SKU title in a motion prompt. On-screen copy is only the headline and CTA the merchant wrote. Burn that on at stitch (overlays on). Do not ask the motion model to paint letters. Swap beats with studio_scenes_reorder (every scene id once) or studio_stitch_from_script sceneIds.
 6. outputUrl must be an MP4. A URL ending in .mp4.png is a broken document-icon poster, not the clip. Do not show it as the video and do not put it in mediaItems. Wait for stitch outputUrl or the asset source MP4.
 7. studio_reconstruct_3d is an optional GLB mesh (150 credits standard TRELLIS, 350 premium Hunyuan). Listing photos are enough for an accurate SKU clip. Do not run 3D unless they asked for a 3D object. 3D is not USDZ and is not fed into Luma.
 8. Stop after stills and after the MP4 so the merchant can approve. Schedule posts with social_post_schedule and mediaItems (the MP4 URL) at an exact ISO scheduledAt. They land in the review queue. Resolve with studio_review_resolve.
-9. Never work around a safety block, never turn the kill switch off, never buy credits, never connect OAuth accounts. Never call ElevenLabs directly. Voices go through studio_voices_search and studio_character_lock_voice.
+9. After Social Studio publishes, call social_posts with status posted and show publishedUrl. That is the Instagram, TikTok, YouTube, or other network permalink. Drafts and review items have none until they post. social_connections lists this merchant's connected accounts (platform plus accountName). It is not a Hub shopper list. Never invent a customer directory.
+10. Hub posts are a different job (hub_create_post / hub_posts). After a Hub post, show hubPermalink. That is the public Hub URL to share.
+11. Never work around a safety block, never turn the kill switch off, never buy credits, never connect OAuth accounts. Never call ElevenLabs directly. Voices go through studio_voices_search and studio_character_lock_voice.
 
 Credits: each AI draft and generation spends AI credits on this channel, plus integration credits per GraphQL write.`;
+
+const SOCIAL_POST_SHARE_FIELDS = 'id status caption postedAt publishedUrl errorMessage connection { platform accountName }';
+
+export const SOCIAL_POST_STATUSES = new Set([
+  'posted',
+  'scheduled',
+  'draft_review',
+  'failed',
+  'cancelled',
+  'posting',
+]);
+
+export function socialPostStatusArg(raw) {
+  if (raw == null || raw === '') return null;
+  const status = String(raw).trim();
+  if (!SOCIAL_POST_STATUSES.has(status)) {
+    throw new Error('status must be posted, scheduled, draft_review, failed, cancelled, or posting.');
+  }
+  return status;
+}
 
 /** Job posters named *.mp4.png are Sharp document icons, not playable video. */
 export function annotateStudioJobMedia(payload) {
@@ -63,11 +95,23 @@ const RAW_SOCIAL_TOOLS = [
   },
   {
     name: 'social_connections',
-    description: 'List connected social accounts for this channel.',
+    description: 'List this merchant\'s connected Instagram, TikTok, YouTube, Facebook, Pinterest, X, and LinkedIn accounts (platform + accountName). Not Hub shoppers or Command Center teammates.',
     inputSchema: { type: 'object', properties: { storeId: { type: 'number' } } },
     execute: (args) => adminGraphql(
       `query SocialConnections($storeId: Int) { socialConnections(storeId: $storeId) { id platform accountName status storeId } }`,
       { storeId: args.storeId ?? null },
+    ),
+  },
+  {
+    name: 'social_posts',
+    description: 'List Social Studio posts for this channel. publishedUrl is the live network permalink after publish (Instagram, TikTok, etc). Drafts and review items have none. Optional status: posted, scheduled, draft_review, failed. Connection accountName is the brand account, not a Hub shopper.',
+    inputSchema: {
+      type: 'object',
+      properties: { status: { type: 'string' } },
+    },
+    execute: (args) => adminGraphql(
+      `query SocialStudioPosts($status: String) { socialAutomationPosts(status: $status) { ${SOCIAL_POST_SHARE_FIELDS} } }`,
+      { status: socialPostStatusArg(args.status) },
     ),
   },
   {
@@ -234,7 +278,7 @@ const RAW_SOCIAL_TOOLS = [
   },
   {
     name: 'social_generate_video',
-    description: 'Start an async video job. Poll studio_job_status. Do not call the synchronous video mutation. Charges AI credits.',
+    description: 'Start an async clip job (not a stitched ad). Poll studio_job_status. Do not call the synchronous video mutation. includeAudio true asks Veo for native sound design (ambiance and SFX) and uses Cinema. That is not spoken VO and not a licensed song. Do not name artists. Charges AI credits.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -242,21 +286,29 @@ const RAW_SOCIAL_TOOLS = [
         durationSeconds: { type: 'number' },
         engine: { type: 'string' },
         aspectRatio: { type: 'string' },
+        includeAudio: { type: 'boolean' },
+        imageAssetId: { type: 'string' },
       },
       required: ['prompt'],
     },
-    execute: (args) => adminGraphql(
-      `mutation GenVideoJob($input: AiGenerateVideoInput!) { aiGenerateVideoJob(input: $input) { jobId estimatedMs } }`,
-      {
-        input: {
-          prompt: String(args.prompt),
-          durationSeconds: Number(args.durationSeconds) || 6,
-          engine: args.engine || null,
-          aspectRatio: args.aspectRatio || '9:16',
+    execute: (args) => {
+      const includeAudio = args.includeAudio === true;
+      return adminGraphql(
+        `mutation GenVideoJob($input: AiGenerateVideoInput!) { aiGenerateVideoJob(input: $input) { jobId estimatedMs } }`,
+        {
+          input: {
+            prompt: String(args.prompt),
+            durationSeconds: Number(args.durationSeconds) || 6,
+            engine: engineForNativeAudio(args.engine, includeAudio),
+            aspectRatio: args.aspectRatio || '9:16',
+            includeAudio,
+            imageAssetId: args.imageAssetId || null,
+            termsAcknowledged: args.confirm === true || args.termsAcknowledged === true,
+          },
         },
-      },
-      { allowWrite: true },
-    ),
+        { allowWrite: true },
+      );
+    },
   },
   {
     name: 'studio_stores',
@@ -372,7 +424,7 @@ const RAW_SOCIAL_TOOLS = [
     description: 'List Social Studio posts waiting for a person to review.',
     inputSchema: { type: 'object', properties: {} },
     execute: () => adminGraphql(
-      `query ReviewQueue { socialAutomationPosts(status: "draft_review") { id caption platform status riskTier createdAt } }`,
+      `query ReviewQueue { socialAutomationPosts(status: "draft_review") { ${SOCIAL_POST_SHARE_FIELDS} riskTier createdAt } }`,
     ),
   },
   {
@@ -390,7 +442,7 @@ const RAW_SOCIAL_TOOLS = [
       required: ['connectionIds', 'caption'],
     },
     execute: (args) => adminGraphql(
-      `mutation CreatePosts($input: CreateSocialPostsInput!) { createSocialPosts(input: $input) { posts { id status } } }`,
+      `mutation CreatePosts($input: CreateSocialPostsInput!) { createSocialPosts(input: $input) { posts { ${SOCIAL_POST_SHARE_FIELDS} } } }`,
       {
         input: {
           connectionIds: args.connectionIds.map(Number),
@@ -491,7 +543,7 @@ const RAW_SOCIAL_TOOLS = [
       required: ['id'],
     },
     execute: (args) => adminGraphql(
-      `mutation UpdatePost($id: ID!, $input: UpdateSocialPostInput!) { updateSocialPost(id: $id, input: $input) { id status } }`,
+      `mutation UpdatePost($id: ID!, $input: UpdateSocialPostInput!) { updateSocialPost(id: $id, input: $input) { ${SOCIAL_POST_SHARE_FIELDS} } }`,
       { id: String(args.id), input: { caption: args.caption, scheduledAt: args.scheduledAt } },
       { allowWrite: true },
     ),
@@ -501,7 +553,7 @@ const RAW_SOCIAL_TOOLS = [
     description: 'Cancel a scheduled Social Studio post.',
     inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
     execute: (args) => adminGraphql(
-      `mutation CancelPost($id: ID!) { cancelSocialPost(id: $id) { id status } }`,
+      `mutation CancelPost($id: ID!) { cancelSocialPost(id: $id) { ${SOCIAL_POST_SHARE_FIELDS} } }`,
       { id: String(args.id) },
       { allowWrite: true },
     ),

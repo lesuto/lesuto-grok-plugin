@@ -262,6 +262,34 @@ test('studio look propose formats numbered photo URLs', async () => {
   assert.equal(stills.looks[1].assetId, 11);
 });
 
+test('social_generate_video passes Veo native audio on Cinema', async () => {
+  const { engineForNativeAudio, socialTools, SOCIAL_OPERATOR_GUIDE } = await import('./tools/social.mjs');
+  assert.equal(engineForNativeAudio(null, true), 'cinema');
+  assert.equal(engineForNativeAudio('luma', true), 'cinema');
+  assert.equal(engineForNativeAudio('veo-3.1', true), 'veo-3.1');
+  assert.equal(engineForNativeAudio('seedance', false), 'seedance');
+  assert.match(SOCIAL_OPERATOR_GUIDE, /social_generate_video with includeAudio true/);
+  const tool = socialTools.find((t) => t.name === 'social_generate_video');
+  assert.equal(tool.inputSchema.properties.includeAudio.type, 'boolean');
+  await withAgentEnv(async () => {
+    await withMockFetch((_url, init) => {
+      const body = JSON.parse(init.body);
+      if (String(body.query).includes('creativeStudioPricing')) {
+        return jsonResponse(200, { data: { creativeStudioPricing: { canSpend: true, balance: 5000, videoStandardPerScene: 120, videoCinemaPerScene: 350 } } });
+      }
+      assert.equal(body.variables.input.includeAudio, true);
+      assert.equal(body.variables.input.engine, 'cinema');
+      assert.equal(body.variables.input.termsAcknowledged, true);
+      return jsonResponse(200, { data: { aiGenerateVideoJob: { jobId: 'v1', estimatedMs: 1 } } });
+    }, async () => {
+      const quoted = await tool.execute({ prompt: 'teak chair in rain', includeAudio: true });
+      assert.equal(quoted.needsConfirm, true);
+      assert.equal(quoted.credits, 350);
+      await tool.execute({ prompt: 'teak chair in rain', includeAudio: true, confirm: true });
+    });
+  });
+});
+
 test('studio_produce_video snaps duration and can pass a hub store', async () => {
   const { snapStudioDuration, socialTools } = await import('./tools/social.mjs');
   assert.equal(snapStudioDuration(25), 30);
@@ -307,7 +335,8 @@ test('studio stitch clip order and talent restage tools exist', async () => {
   assert.ok(reorder);
   assert.match(reorder.description, /Hook badge stays/);
   assert.equal(/becomes the opening hook/i.test(reorder.description), false);
-  assert.match(studioTools.find((t) => t.name === 'studio_keyframe_regenerate').description, /sitting in the product/);
+  assert.match(studioTools.find((t) => t.name === 'studio_keyframe_regenerate').description, /stillMode/);
+  assert.match(studioTools.find((t) => t.name === 'studio_scene_update').description, /listing_orbit/);
 });
 
 test('studio_job_status ignores .mp4.png posters', async () => {
@@ -361,6 +390,84 @@ test('studio keyframes and scene renders enqueue with sceneId', () => {
   assert.match(readFileSync(join(pluginRoot, 'tools/studio.mjs'), 'utf8'), /studio_catalog_angles/);
   const keyframes = src.slice(src.indexOf("name: 'studio_keyframes'"), src.indexOf("name: 'studio_keyframe_regenerate'"));
   assert.equal(keyframes.includes('generateCreativeKeyframes'), false);
+  const regen = src.slice(src.indexOf("name: 'studio_keyframe_regenerate'"), src.indexOf("name: 'studio_render_scenes'"));
+  assert.match(regen, /enqueueCreativeKeyframes/);
+  assert.equal(regen.includes('generateCreativeKeyframes'), false);
   const renders = src.slice(src.indexOf("name: 'studio_render_scenes'"), src.indexOf("name: 'studio_render_storyboard'"));
   assert.equal(renders.includes('renderCreativeScenes('), false);
+});
+
+test('hub and Social Studio tools return share URLs and connected accounts', async () => {
+  const hub = readFileSync(join(pluginRoot, 'tools/hub.mjs'), 'utf8');
+  const social = readFileSync(join(pluginRoot, 'tools/social.mjs'), 'utf8');
+  const studio = readFileSync(join(pluginRoot, 'tools/studio.mjs'), 'utf8');
+  assert.match(hub, /hub_posts[\s\S]*hubPermalink/);
+  assert.match(hub, /createStorePost[\s\S]*hubPermalink/);
+  assert.match(hub, /updateStorePost[\s\S]*hubPermalink/);
+  assert.match(hub, /createScene[\s\S]*hubPermalink/);
+  assert.match(hub, /beginAsyncScenePublish[\s\S]*hubPermalink/);
+  assert.match(social, /name: 'social_posts'/);
+  assert.match(social, /socialAutomationPosts/);
+  assert.match(social, /SOCIAL_POST_SHARE_FIELDS[\s\S]*publishedUrl/);
+  assert.match(social, /connection \{ platform accountName \}/);
+  assert.match(social, /Not Hub shoppers/);
+  assert.match(studio, /topPosts[\s\S]*publishedUrl/);
+  assert.match(social, /SOCIAL_OPERATOR_GUIDE[\s\S]*hubPermalink/);
+  assert.equal(hub.includes('mentionedCustomerIds'), false);
+  assert.equal(social.includes('mentionedCustomerIds'), false);
+  assert.equal(social.includes('shareToken'), false);
+  assert.match(hub, /graphqlWithHubPermalinkFallback/);
+});
+
+test('hub GraphQL retries without hubPermalink on schema lag and still returns a share URL', async () => {
+  const {
+    graphqlWithHubPermalinkFallback,
+    stripHubPermalinkField,
+    fallbackHubPermalink,
+  } = await import('./lib/hub-permalink-tiers.mjs');
+  const stripped = stripHubPermalinkField('{ id title hubPermalink }');
+  assert.match(stripped, /id/);
+  assert.equal(/\bhubPermalink\b/.test(stripped), false);
+  assert.equal(fallbackHubPermalink('42', 'post'), 'https://hub.lesuto.com/post/42');
+  assert.equal(fallbackHubPermalink('7', 'scene'), 'https://hub.lesuto.com/scenes?id=7');
+  const send = async (query) => {
+    if (/\bhubPermalink\b/.test(query)) {
+      throw new Error('Cannot query field "hubPermalink" on type "StorePost".');
+    }
+    return { storePosts: [{ id: '9', title: 'Patio' }] };
+  };
+  const out = await graphqlWithHubPermalinkFallback(
+    send,
+    'query { storePosts { id title hubPermalink } }',
+    {},
+  );
+  assert.equal(out.storePosts[0].hubPermalink, 'https://hub.lesuto.com/post/9');
+});
+
+test('social_posts rejects unknown status values', async () => {
+  const { socialPostStatusArg } = await import('./tools/social.mjs');
+  assert.equal(socialPostStatusArg(null), null);
+  assert.equal(socialPostStatusArg('posted'), 'posted');
+  await assert.rejects(() => Promise.resolve().then(() => socialPostStatusArg('customers')), /status must be/);
+});
+
+test('studio GraphQL retries without stillMode on schema lag and refuses silent stillMode writes', async () => {
+  const { graphqlWithSceneFieldTiers, stripSceneContractFields } = await import('./lib/scene-field-tiers.mjs');
+  const stripped = stripSceneContractFields('status stillMode productId errorMessage keyframeAssetId');
+  assert.match(stripped, /status/);
+  assert.equal(/stillMode/.test(stripped), false);
+  const send = async (query) => {
+    if (/stillMode/.test(query)) throw new Error('Cannot query field "stillMode" on type "CreativeScene".');
+    return { ok: true };
+  };
+  const out = await graphqlWithSceneFieldTiers(send, 'query { creativeScriptScenes { stillMode action } }', {});
+  assert.equal(out.ok, true);
+  await assert.rejects(
+    () => graphqlWithSceneFieldTiers(
+      send,
+      'mutation { updateCreativeScene { stillMode } }',
+      { input: { stillMode: 'lifestyle' } },
+    ),
+    /Still mode is not on this API yet/,
+  );
 });

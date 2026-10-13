@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DENIED_PREFIXES, deniedOp, extractFields, isDestructiveGraphql } from './lib/denied-ops.mjs';
+import { DENIED_PREFIXES, DENIED_SELECTION_FIELDS, deniedOp, deniedSelectionField, extractFields, isDestructiveGraphql } from './lib/denied-ops.mjs';
 import { pluginRoot } from './test/helpers.mjs';
 
 test('denies staff CRM and key minting field names', () => {
@@ -51,6 +51,24 @@ test('isDestructiveGraphql only flags listed mutations', () => {
   assert.equal(isDestructiveGraphql('mutation { cancelOrder(id: "1") { id } }'), true);
   assert.equal(isDestructiveGraphql('mutation { refundOrder(id: "1") { id } }'), true);
   assert.equal(isDestructiveGraphql('mutation { deleteProduct(id: "1") { result } }'), true);
+});
+
+test('deniedSelectionField blocks shopper ids and share tokens', () => {
+  assert.equal(deniedSelectionField('query { storePosts { mentionedCustomerIds } }'), 'mentionedCustomerIds');
+  assert.equal(deniedSelectionField('query { storePosts { mentions { displayName } } }'), 'mentions');
+  assert.equal(deniedSelectionField('query { socialAutomationPost { shareToken } }'), 'shareToken');
+  assert.equal(deniedSelectionField('query { storePosts { id title hubPermalink } }'), null);
+  assert.equal(deniedSelectionField('mutation { updateStorePost(input: { body: "the sale mentions teak" }) { id } }'), null);
+});
+
+test('denied selection fields stay in sync with gateway grok.go', () => {
+  const goPath = join(pluginRoot, '../api-service/internal/gateway/grok.go');
+  if (!existsSync(goPath)) return;
+  const go = readFileSync(goPath, 'utf8');
+  const block = go.match(/grokDeniedSelectionFields = \[\]string\{([\s\S]*?)\}/);
+  assert.ok(block, 'grokDeniedSelectionFields block');
+  const goFields = [...block[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(goFields.sort(), [...DENIED_SELECTION_FIELDS].sort());
 });
 
 test('denied prefixes stay in sync with gateway grok.go', () => {

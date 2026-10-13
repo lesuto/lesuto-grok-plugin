@@ -4,16 +4,22 @@
  * when the merchant wrote the script or picked a voice.
  */
 import { adminGraphql } from '../lib/graphql.mjs';
+import { graphqlWithSceneFieldTiers } from '../lib/scene-field-tiers.mjs';
 import { wrapCreditTool } from '../lib/credit-confirm.mjs';
 import { orderScenesForStitch } from '../lib/studio-clips.mjs';
 
-const SCENE_FIELDS = `id order label subject action cameraMove lighting durationSeconds isOpeningHook voiceover onScreenText status keyframeAssetId keyframePreviewUrl endKeyframeAssetId endKeyframePreviewUrl renderedAssetId renderedPreviewUrl`;
+const SCENE_FIELDS = `id order label subject action cameraMove lighting durationSeconds isOpeningHook voiceover onScreenText status stillMode productId errorMessage keyframeAssetId keyframePreviewUrl endKeyframeAssetId endKeyframePreviewUrl renderedAssetId renderedPreviewUrl`;
 const SCRIPT_FIELDS = `id briefId title body hookLine ctaLine endCard { lines durationSeconds } rankScore variantIndex status complianceFlags aiGenerated beats { order label voiceover onScreenText visual durationSeconds }`;
 const CHARACTER_FIELDS = `id name archetype description voiceNotes voiceConfig isPreset storeId primaryReferenceUrl`;
 const BRIEF_FIELDS = `id status mode answers completeness { complete missing }`;
 
 function gql(query, variables, write = false) {
-  return adminGraphql(query, variables, write ? { allowWrite: true } : undefined);
+  return graphqlWithSceneFieldTiers(
+    adminGraphql,
+    query,
+    variables,
+    write ? { allowWrite: true } : undefined,
+  );
 }
 
 const LOOK_PROPOSAL_FIELDS = `characterId visualStyle primaryShotType currentPreviewUrl currentAssetId creditsCharged candidates { assetId previewUrl }`;
@@ -228,7 +234,7 @@ const RAW_STUDIO_TOOLS = [
   },
   {
     name: 'studio_scenes_build',
-    description: 'Build the shot list from the selected script.',
+    description: 'Build the shot list from the selected script. Each scene gets stillMode (listing_orbit, lifestyle, establishing, end_card). Confirm or set stillMode with studio_scene_update before keyframes.',
     inputSchema: { type: 'object', properties: { scriptId: { type: 'string' } }, required: ['scriptId'] },
     execute: (args) => gql(
       `mutation BuildScenes($scriptId: ID!) { buildCreativeScenes(scriptId: $scriptId) { ${SCENE_FIELDS} } }`,
@@ -238,7 +244,7 @@ const RAW_STUDIO_TOOLS = [
   },
   {
     name: 'studio_scene_update',
-    description: 'Edit one scene: action, cameraMove, lighting, voiceover, onScreenText, listing start/end asset ids, duration. For talent in the product, set action (adult seated in the chair) and do not assign listing photos. On-screen text is burned on at stitch, not painted by the motion model.',
+    description: 'Edit one scene: stillMode (listing_orbit | lifestyle | establishing | end_card), action, cameraMove, lighting, voiceover, onScreenText, listing start/end asset ids, duration, productId. stillMode is the still contract. listing_orbit pastes catalog photos. lifestyle generates people-in-product stills and uses listing photos as SKU reference only. establishing has no SKU in frame. end_card is overlay copy. Changing stillMode clears stills. Do not assign listing photos as keyframes on lifestyle or establishing. On-screen text is burned on at stitch, not painted by the motion model.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -253,6 +259,8 @@ const RAW_STUDIO_TOOLS = [
         endKeyframeAssetId: { type: 'number' },
         label: { type: 'string' },
         subject: { type: 'string' },
+        stillMode: { type: 'string', enum: ['listing_orbit', 'lifestyle', 'establishing', 'end_card'] },
+        productId: { type: 'number' },
       },
       required: ['id'],
     },
@@ -271,6 +279,8 @@ const RAW_STUDIO_TOOLS = [
           onScreenText: args.onScreenText,
           keyframeAssetId: args.keyframeAssetId ?? undefined,
           endKeyframeAssetId: args.endKeyframeAssetId ?? undefined,
+          stillMode: args.stillMode || undefined,
+          productId: args.productId ?? undefined,
         },
       },
       true,
@@ -322,7 +332,7 @@ const RAW_STUDIO_TOOLS = [
   },
   {
     name: 'studio_keyframes',
-    description: 'Enqueue stills. Pass sceneId for one beat. Listing-photo start/end frames are free (skip-if-ready). Talent in the product needs force true (about 12 AI credits) so IP-Adapter restages the SKU instead of animating the empty listing still. Without sceneId this charges every scene. Poll studio_job_status. Use the merchant store (L1), not the supplier channel. Stop and show still URLs before paying for motion. JPEG/PNG stills only; ignore any .mp4.png poster.',
+    description: 'Enqueue stills. Pass sceneId for one beat. Poll studio_job_status for jobId. Listing-orbit stills reuse catalog photos and charge 0. People or setting beats generate from the scene text (about 12 AI credits) and use listing photos only as SKU reference. Read errorMessage on a failed scene. Without sceneId this charges every generated scene. Use the merchant store (L1), not the supplier channel. Stop and show still URLs before paying for motion. JPEG/PNG stills only; ignore any .mp4.png poster.',
     inputSchema: {
       type: 'object',
       properties: { scriptId: { type: 'string' }, sceneId: { type: 'string' }, which: { type: 'string' }, force: { type: 'boolean' } },
@@ -341,14 +351,14 @@ const RAW_STUDIO_TOOLS = [
   },
   {
     name: 'studio_keyframe_regenerate',
-    description: 'Regenerate the start or end still for one scene (force). Use this when they want talent sitting in the product after listing photos were already assigned. About 12 AI credits. which=start|end.',
+    description: 'Enqueue a forced start or end still for one scene. Poll studio_job_status for jobId. Set stillMode first (lifestyle or establishing) when a listing photo was pasted onto a people or setting beat. About 12 AI credits when a new image is generated. listing_orbit reuse charges 0. which=start|end.',
     inputSchema: {
       type: 'object',
       properties: { scriptId: { type: 'string' }, sceneId: { type: 'string' }, which: { type: 'string' } },
       required: ['scriptId', 'sceneId', 'which'],
     },
     execute: (args) => gql(
-      `mutation Regen($scriptId: ID!, $sceneId: ID, $which: String, $force: Boolean) { generateCreativeKeyframes(scriptId: $scriptId, sceneId: $sceneId, which: $which, force: $force) { ${SCENE_FIELDS} } }`,
+      `mutation EnqueueKeyframes($scriptId: ID!, $sceneId: ID, $which: String, $force: Boolean) { enqueueCreativeKeyframes(scriptId: $scriptId, sceneId: $sceneId, which: $which, force: $force) { jobId estimatedMs } }`,
       { scriptId: String(args.scriptId), sceneId: String(args.sceneId), which: String(args.which), force: true },
       true,
     ),
@@ -694,7 +704,7 @@ const RAW_STUDIO_TOOLS = [
     description: 'Social Studio analytics for this channel. Call social_metrics_sync first if numbers look stale.',
     inputSchema: { type: 'object', properties: { storeId: { type: 'number' }, rangeDays: { type: 'number' } } },
     execute: (args) => gql(
-      `query Analytics($storeId: Int, $rangeDays: Int) { socialAnalytics(storeId: $storeId, rangeDays: $rangeDays) { rangeDays totals { posts posted impressions likes comments shares clicks engagementScore } byPlatform { key label posts engagementScore impressions } } }`,
+      `query Analytics($storeId: Int, $rangeDays: Int) { socialAnalytics(storeId: $storeId, rangeDays: $rangeDays) { rangeDays totals { posts posted impressions likes comments shares clicks engagementScore } byPlatform { key label posts engagementScore impressions } topPosts { id caption platform accountName postedAt publishedUrl engagementScore } } }`,
       { storeId: args.storeId ?? null, rangeDays: args.rangeDays ?? 30 },
     ),
   },

@@ -7,14 +7,14 @@ import { jsonResponse, withAgentEnv, withMockFetch } from './test/helpers.mjs';
 
 const EXPECTED_TOOLS = [
   'lesuto_graphql',
-  'list_meeting_types', 'create_booking_invite', 'list_upcoming_bookings',
+  'list_meeting_types', 'create_booking_invite', 'create_host_booking', 'list_upcoming_bookings',
   'cancel_booking', 'complete_booking', 'no_show_booking',
   'orders_snapshot', 'search_catalog', 'inventory_stock', 'channel_analytics', 'shipping_labels',
   'adjust_variant_stock', 'create_shipment', 'buy_shipping_label',
   'store_status', 'site_status', 'hub_posts', 'hub_create_post', 'hub_create_scene', 'hub_update_post',
   'blog_list', 'blog_get', 'blog_create', 'blog_update', 'blog_publish', 'blog_unpublish',
   'blog_cadence_save',
-  'social_connections', 'social_growth_line_draft', 'social_growth_line_save',
+  'social_connections', 'social_posts', 'social_growth_line_draft', 'social_growth_line_save',
   'social_campaign_draft', 'social_campaign_save', 'social_campaign_arm', 'social_campaign_pause',
   'social_post_schedule', 'social_generate_image', 'social_generate_video',
   'studio_operator_guide', 'studio_stores', 'studio_produce_video', 'studio_job_status', 'studio_launch_campaign', 'studio_review_queue',

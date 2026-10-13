@@ -115,6 +115,10 @@ test('adminGraphql refuses denied operations without fetching', async () => {
         () => adminGraphql('query { crmAgentBriefing { id } }'),
         /not permitted/,
       );
+      await assert.rejects(
+        () => adminGraphql('query { storePosts { id mentionedCustomerIds } }'),
+        /Field 'mentionedCustomerIds' is not permitted/,
+      );
       assert.equal(calls.length, 0);
     });
   });

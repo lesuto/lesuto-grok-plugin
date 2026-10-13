@@ -1,4 +1,9 @@
 import { adminGraphql } from '../lib/graphql.mjs';
+import { graphqlWithHubPermalinkFallback } from '../lib/hub-permalink-tiers.mjs';
+
+function hubGraphql(query, variables, opts) {
+  return graphqlWithHubPermalinkFallback(adminGraphql, query, variables, opts);
+}
 
 export const hubTools = [
   {
@@ -19,19 +24,19 @@ export const hubTools = [
   },
   {
     name: 'hub_posts',
-    description: 'List Hub store posts. channelId 0 means the active channel.',
+    description: 'List Hub store posts. hubPermalink is the public share URL (https://hub.lesuto.com/post/{id} or the tenant Hub origin). channelId 0 means the active channel.',
     inputSchema: {
       type: 'object',
       properties: { take: { type: 'number' }, skip: { type: 'number' } },
     },
-    execute: (args) => adminGraphql(
-      `query HubPosts($take: Int, $skip: Int) { storePosts(channelId: "0", take: $take, skip: $skip) { id title createdAt } }`,
+    execute: (args) => hubGraphql(
+      `query HubPosts($take: Int, $skip: Int) { storePosts(channelId: "0", take: $take, skip: $skip) { id title createdAt hubPermalink } }`,
       { take: Math.min(Number(args.take) || 20, 50), skip: Number(args.skip) || 0 },
     ),
   },
   {
     name: 'hub_create_post',
-    description: 'Create a Hub store post. Requires a Content or All jobs key. Pass at least three hashtags. Defaults to the active store.',
+    description: 'Create a Hub store post. Returns hubPermalink, the public share URL. Requires a Content or All jobs key. Pass at least three hashtags. Defaults to the active store. Show hubPermalink to the merchant after create.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -52,8 +57,8 @@ export const hubTools = [
       if (hashtags.length < 3) {
         throw new Error('Hub posts need at least three hashtags.');
       }
-      return adminGraphql(
-        `mutation CreateStorePost($input: CreateStorePostInput!) { createStorePost(input: $input) { id title createdAt } }`,
+      return hubGraphql(
+        `mutation CreateStorePost($input: CreateStorePostInput!) { createStorePost(input: $input) { id title createdAt hubPermalink } }`,
         {
           input: {
             title: String(args.title),
@@ -84,8 +89,8 @@ export const hubTools = [
       },
       required: ['title', 'videoUrl'],
     },
-    execute: (args) => adminGraphql(
-      `mutation CreateScene($input: CreateSceneInput!) { createScene(input: $input) { id title } }`,
+    execute: (args) => hubGraphql(
+      `mutation CreateScene($input: CreateSceneInput!) { createScene(input: $input) { id title hubPermalink } }`,
       {
         input: {
           title: String(args.title),
@@ -110,8 +115,8 @@ export const hubTools = [
       },
       required: ['videoUrl', 'duration'],
     },
-    execute: (args) => adminGraphql(
-      `mutation PublishScene($input: BeginAsyncScenePublishInput!) { beginAsyncScenePublish(input: $input) { id title } }`,
+    execute: (args) => hubGraphql(
+      `mutation PublishScene($input: BeginAsyncScenePublishInput!) { beginAsyncScenePublish(input: $input) { id title hubPermalink } }`,
       {
         input: {
           videoUrl: String(args.videoUrl),
@@ -153,8 +158,8 @@ export const hubTools = [
         }
         input.hashtags = args.hashtags.map(String);
       }
-      return adminGraphql(
-        `mutation UpdateStorePost($postId: ID!, $input: UpdateStorePostInput!) { updateStorePost(postId: $postId, input: $input) { id title } }`,
+      return hubGraphql(
+        `mutation UpdateStorePost($postId: ID!, $input: UpdateStorePostInput!) { updateStorePost(postId: $postId, input: $input) { id title hubPermalink } }`,
         { postId: String(args.postId), input },
         { allowWrite: true },
       );

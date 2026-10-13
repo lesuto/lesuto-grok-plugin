@@ -39,6 +39,44 @@ export const connectTools = [
     ),
   },
   {
+    name: 'create_host_booking',
+    description: 'Create a confirmed Lesuto Connect booking at a chosen time and email the guest. Requires guestTimezone (IANA). Use create_booking_invite when they should pick the slot.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        meetingTypeId: { type: 'string' },
+        startTime: { type: 'string' },
+        guestName: { type: 'string' },
+        guestEmail: { type: 'string' },
+        guestTimezone: { type: 'string' },
+        guestPhone: { type: 'string' },
+        guestCompany: { type: 'string' },
+        guestNotes: { type: 'string' },
+        hostNotes: { type: 'string' },
+        durationMinutes: { type: 'number' },
+      },
+      required: ['meetingTypeId', 'startTime', 'guestName', 'guestEmail', 'guestTimezone'],
+    },
+    execute: (args) => adminGraphql(
+      `mutation CreateHostBooking($i: CreateHostBookingInput!) { createHostBooking(input: $i) { id startTime guestEmail status } }`,
+      {
+        i: {
+          meetingTypeId: args.meetingTypeId,
+          startTime: args.startTime,
+          guestName: args.guestName,
+          guestEmail: args.guestEmail,
+          guestTimezone: args.guestTimezone,
+          guestPhone: args.guestPhone || null,
+          guestCompany: args.guestCompany || null,
+          guestNotes: args.guestNotes || null,
+          hostNotes: args.hostNotes || null,
+          durationMinutes: args.durationMinutes || null,
+        },
+      },
+      { allowWrite: true },
+    ),
+  },
+  {
     name: 'list_upcoming_bookings',
     description: 'List upcoming Lesuto Connect bookings.',
     inputSchema: {

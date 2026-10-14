@@ -6,6 +6,8 @@ import { deniedOp, extractFields } from './lib/denied-ops.mjs';
 import { TOOLS } from './server.mjs';
 import { commerceTools } from './tools/commerce.mjs';
 import { marketplaceTools, MARKETPLACE_OPERATOR_GUIDE } from './tools/marketplace.mjs';
+import { catalogTools, CATALOG_OPERATOR_GUIDE } from './tools/catalog.mjs';
+import { sitesTools } from './tools/sites.mjs';
 import { jsonResponse, pluginRoot, withAgentEnv, withMockFetch } from './test/helpers.mjs';
 
 test('every tool has execute, schema, and a unique name', () => {
@@ -27,7 +29,7 @@ test('org and store rollup tools skip the channel token', () => {
 });
 
 test('tool GraphQL operations are not on the merchant denylist', () => {
-  for (const rel of ['tools/connect.mjs', 'tools/commerce.mjs', 'tools/hub.mjs', 'tools/blog.mjs', 'tools/stores.mjs', 'tools/org.mjs', 'tools/social.mjs', 'tools/studio.mjs', 'tools/studio-extra.mjs', 'tools/marketplace.mjs']) {
+  for (const rel of ['tools/connect.mjs', 'tools/commerce.mjs', 'tools/hub.mjs', 'tools/blog.mjs', 'tools/stores.mjs', 'tools/org.mjs', 'tools/social.mjs', 'tools/studio.mjs', 'tools/studio-extra.mjs', 'tools/marketplace.mjs', 'tools/catalog.mjs', 'tools/sites.mjs']) {
     const src = readFileSync(join(pluginRoot, rel), 'utf8');
     const blocks = [...src.matchAll(/`((?:query|mutation)[\s\S]*?)`/g)].map((m) => m[1]);
     assert.ok(blocks.length > 0, rel);
@@ -324,6 +326,8 @@ test('studio stitch clip order and talent restage tools exist', async () => {
     { id: '3', renderedAssetId: 30, durationSeconds: 4, label: 'C' },
   ], ['2']);
   assert.equal(clips[0].sceneId, 2);
+  assert.equal(clips[0].assetId, undefined);
+  assert.equal(clips[0].outSec, 6);
   assert.equal(clips[1].sceneId, 1);
   assert.equal(clips[2].sceneId, 3);
   assert.throws(() => orderScenesForStitch([{ id: '1' }], ['1']), /Render scenes before stitching/);
@@ -338,6 +342,15 @@ test('studio stitch clip order and talent restage tools exist', async () => {
   assert.equal(/becomes the opening hook/i.test(reorder.description), false);
   assert.match(studioTools.find((t) => t.name === 'studio_keyframe_regenerate').description, /stillMode/);
   assert.match(studioTools.find((t) => t.name === 'studio_scene_update').description, /listing_orbit/);
+  assert.match(studioTools.find((t) => t.name === 'studio_scene_update').description, /stillsCleared/);
+  assert.match(studioTools.find((t) => t.name === 'studio_scene_update').description, /startAssetId/);
+  assert.ok(studioTools.find((t) => t.name === 'studio_assets'));
+  assert.ok(studioTools.find((t) => t.name === 'studio_shot_presets'));
+  assert.ok(studioTools.find((t) => t.name === 'studio_music_search'));
+  assert.match(studioTools.find((t) => t.name === 'studio_render_scenes').description, /includeAudio/);
+  assert.match(studioTools.find((t) => t.name === 'studio_stitch_from_script').description, /cinema/);
+  assert.match(readFileSync(join(pluginRoot, 'tools/studio.mjs'), 'utf8'), /stillsCleared: true/);
+  assert.match(readFileSync(join(pluginRoot, 'tools/studio.mjs'), 'utf8'), /args\.stillMode \|\| preset\?\.stillMode/);
   const stillModes = studioTools.find((t) => t.name === 'studio_still_modes');
   assert.ok(stillModes);
   assert.match(stillModes.description, /talent_restage/);
@@ -347,6 +360,15 @@ test('studio stitch clip order and talent restage tools exist', async () => {
 test('studio_job_status ignores .mp4.png posters', async () => {
   const { annotateStudioJobMedia, socialTools, SOCIAL_OPERATOR_GUIDE } = await import('./tools/social.mjs');
   assert.match(SOCIAL_OPERATOR_GUIDE, /studio_catalog_angles/);
+  assert.match(SOCIAL_OPERATOR_GUIDE, /studio_still_modes/);
+  assert.match(SOCIAL_OPERATOR_GUIDE, /studio_keyframe_regenerate/);
+  assert.match(SOCIAL_OPERATOR_GUIDE, /studio_assets/);
+  assert.match(SOCIAL_OPERATOR_GUIDE, /studio_shot_presets/);
+  assert.match(SOCIAL_OPERATOR_GUIDE, /studio_music_search/);
+  assert.match(SOCIAL_OPERATOR_GUIDE, /lesuto_graphql is read-only/);
+  assert.match(SOCIAL_OPERATOR_GUIDE, /Changing stillMode/);
+  assert.match(SOCIAL_OPERATOR_GUIDE, /PNG still/);
+  assert.match(SOCIAL_OPERATOR_GUIDE, /steps.assetId/);
   assert.match(SOCIAL_OPERATOR_GUIDE, /\.mp4\.png/);
   assert.match(SOCIAL_OPERATOR_GUIDE, /optional GLB/);
   const flagged = annotateStudioJobMedia({
@@ -368,6 +390,9 @@ test('studio_job_status ignores .mp4.png posters', async () => {
   assert.equal(playable.playableOutputUrl, 'https://cdn.lesuto.com/assets/clip.mp4');
   assert.equal(playable.posterIsNotTheVideo, false);
   const job = socialTools.find((t) => t.name === 'studio_job_status');
+  assert.match(job.description, /PNG still/);
+  const jobSrc = readFileSync(join(pluginRoot, 'tools/social.mjs'), 'utf8');
+  assert.match(jobSrc, /steps \{ stepId assetId preview creditsUsed success error \}/);
   await withAgentEnv(async () => {
     await withMockFetch(() => jsonResponse(200, {
       data: {
@@ -501,4 +526,63 @@ test('marketplace tools are registered and subscribe is confirm-gated channel_on
       await subscribe.execute({ supplierChannelId: '9', confirm: true });
     });
   });
+});
+
+test('catalog tools stay on add/remove and never createProduct', async () => {
+  for (const name of ['catalog_operator_guide', 'suggest_catalog', 'create_store', 'create_store_collection', 'add_products_to_store', 'add_products_to_collection', 'collection_banner_options', 'set_store_collection_details', 'preview_smart_collection', 'create_smart_collection', 'update_smart_collection_rule', 'list_supplier_collections', 'subscribe_to_supplier_collection']) {
+    assert.ok(TOOLS.some((t) => t.name === name), name);
+  }
+  assert.match(CATALOG_OPERATOR_GUIDE, /createProduct/);
+  assert.match(CATALOG_OPERATOR_GUIDE, /add_products_to_collection/);
+  assert.match(CATALOG_OPERATOR_GUIDE, /set_store_collection_details/);
+  assert.match(CATALOG_OPERATOR_GUIDE, /create_smart_collection/);
+  assert.match(CATALOG_OPERATOR_GUIDE, /autoGenerateCollections/);
+  assert.match(CATALOG_OPERATOR_GUIDE, /updateStoreAutoSync/);
+  const createCollection = catalogTools.find((t) => t.name === 'create_store_collection');
+  const src = String(createCollection.execute);
+  assert.equal(src.includes('productIds'), false);
+  const details = catalogTools.find((t) => t.name === 'set_store_collection_details');
+  assert.equal(String(details.execute).includes('productIds'), false);
+  assert.match(details.description, /Never sends productIds/);
+  const smartCreate = catalogTools.find((t) => t.name === 'create_smart_collection');
+  assert.match(String(smartCreate.execute), /createRuleBasedCollection/);
+  const smartRule = catalogTools.find((t) => t.name === 'update_smart_collection_rule');
+  assert.match(String(smartRule.execute), /setMerchantCollectionRule/);
+  assert.equal(String(smartRule.execute).includes('updateCollectionRule'), false);
+  assert.equal(deniedOp('setMerchantCollectionDetails'), false);
+  assert.equal(deniedOp('setMerchantCollectionRule'), false);
+  assert.equal(deniedOp('createRuleBasedCollection'), false);
+  assert.equal(deniedOp('updateCollectionRule'), true);
+  assert.equal(deniedOp('updateMerchantCollection'), true);
+  assert.equal(deniedOp('autoGenerateCollections'), true);
+  assert.equal(deniedOp('updateStoreAutoSync'), true);
+  await withAgentEnv(async () => {
+    await assert.rejects(
+      () => Promise.resolve().then(() => catalogTools.find((t) => t.name === 'add_products_to_store').execute({ storeId: '1', productIds: ['2'] })),
+      /confirm: true/,
+    );
+    await assert.rejects(
+      () => Promise.resolve().then(() => catalogTools.find((t) => t.name === 'create_smart_collection').execute({ name: 'Teak', storeId: '1' })),
+      /confirm: true/,
+    );
+    await assert.rejects(
+      () => Promise.resolve().then(() => catalogTools.find((t) => t.name === 'create_smart_collection').execute({ name: 'Teak', storeId: '1', confirm: true })),
+      /keyword, product type, supplier, or facet/,
+    );
+    await assert.rejects(
+      () => Promise.resolve().then(() => catalogTools.find((t) => t.name === 'subscribe_to_supplier_collection').execute({ supplierChannelId: '9', supplierCollectionId: '12' })),
+      /confirm: true/,
+    );
+  });
+});
+
+test('sites unwrap never documents printing the secret', () => {
+  const unwrap = sitesTools.find((t) => t.name === 'unwrap_site_login');
+  assert.match(unwrap.description, /Do not print the secret/);
+  assert.equal(deniedOp('saveSiteLogin'), true);
+  assert.equal(deniedOp('unwrapSiteLogin'), false);
+  assert.equal(deniedOp('addProductsToStore'), false);
+  assert.equal(deniedOp('createProduct'), true);
+  assert.equal(deniedOp('updateMerchantCollection'), true);
+  assert.equal(deniedOp('createMerchantCollection'), false);
 });

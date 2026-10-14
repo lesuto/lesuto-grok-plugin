@@ -36,6 +36,11 @@ test('denies staff CRM and key minting field names', () => {
   assert.equal(deniedOp('buyShippingLabel'), false);
   assert.equal(deniedOp('channelBlogCreatePost'), false);
   assert.equal(deniedOp('createStorePost'), false);
+  assert.equal(deniedOp('createRuleBasedCollection'), false);
+  assert.equal(deniedOp('setMerchantCollectionRule'), false);
+  assert.equal(deniedOp('updateCollectionRule'), true);
+  assert.equal(deniedOp('autoGenerateCollections'), true);
+  assert.equal(deniedOp('updateStoreAutoSync'), true);
 });
 
 test('extractFields skips GraphQL keywords', () => {

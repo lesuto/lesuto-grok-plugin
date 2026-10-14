@@ -8,7 +8,19 @@ import { graphqlWithSceneFieldTiers } from '../lib/scene-field-tiers.mjs';
 import { wrapCreditTool } from '../lib/credit-confirm.mjs';
 import { orderScenesForStitch } from '../lib/studio-clips.mjs';
 
-const SCENE_FIELDS = `id order label subject action cameraMove lighting durationSeconds isOpeningHook voiceover onScreenText status stillMode productId errorMessage keyframeAssetId keyframePreviewUrl endKeyframeAssetId endKeyframePreviewUrl renderedAssetId renderedPreviewUrl`;
+const SCENE_FIELDS = `id order label subject action cameraMove lighting durationSeconds isOpeningHook voiceover onScreenText status stillMode productId errorMessage keyframeAssetId keyframePreviewUrl endKeyframeAssetId endKeyframePreviewUrl renderedAssetId renderedPreviewUrl renderedSourceUrl`;
+const LIBRARY_FIELDS = `assetId kind name mimeType previewUrl sourceUrl labels sceneId provenance`;
+const STUDIO_SHOT_PRESETS = [
+  { id: 'product_orbit', stillMode: 'listing_orbit', cameraMove: 'Slow orbit around the product. Keep it filling the frame and in focus.', use: 'Listing photos as start and end. Product stays the hero.' },
+  { id: 'material_closeup', stillMode: 'listing_orbit', cameraMove: 'Slow push into material and finish. The product fills the frame.', use: 'Wood grain, fabric, metal, or coating close-up.' },
+  { id: 'feature_detail', stillMode: 'listing_orbit', cameraMove: 'Move from the full product to the named feature, such as an adjustable backrest. Keep that feature sharp.', use: 'Call out one product feature.' },
+  { id: 'lifestyle_fill', stillMode: 'lifestyle', cameraMove: 'Hold. The product fills most of the frame. Talent is secondary. No extra people.', use: 'People in the scene with the SKU dominant.' },
+  { id: 'product_hero', stillMode: 'listing_orbit', cameraMove: 'Keep the product in frame and in sharp focus for the whole clip. Slow orbit or hold. Do not pull back to empty scenery.', use: 'SKU in frame and in focus for the whole clip.' },
+];
+function shotPresetById(value) {
+  const raw = String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return STUDIO_SHOT_PRESETS.find((preset) => preset.id === raw) || null;
+}
 const SCRIPT_FIELDS = `id briefId title body hookLine ctaLine endCard { lines durationSeconds } rankScore variantIndex status complianceFlags aiGenerated beats { order label voiceover onScreenText visual durationSeconds }`;
 const CHARACTER_FIELDS = `id name archetype description voiceNotes voiceConfig isPreset storeId primaryReferenceUrl`;
 const BRIEF_FIELDS = `id status mode answers completeness { complete missing }`;
@@ -258,7 +270,7 @@ const RAW_STUDIO_TOOLS = [
   },
   {
     name: 'studio_scene_update',
-    description: 'Edit one scene: stillMode, action, cameraMove, lighting, voiceover, onScreenText, listing start/end asset ids, duration, productId. stillMode is the still contract: listing_orbit (listing photos), lifestyle (talent restage / product reference: generate people and lighting from scene text, listing photos as SKU hint only), establishing (no product), end_card. Aliases: talent_restage, product_reference, no_product. Changing stillMode clears stills. Do not assign listing photos as keyframes on lifestyle or establishing. On-screen text is burned on at stitch, not painted by the motion model.',
+    description: 'Edit one scene: stillMode, action, cameraMove, lighting, voiceover, onScreenText, start/end stills from the channel library (startAssetId/endAssetId or keyframeAssetId/endKeyframeAssetId), a whole clip (clipAssetId/renderedAssetId), duration, productId, shotPreset (product_orbit, material_closeup, feature_detail, lifestyle_fill, product_hero). stillMode is the still contract: listing_orbit (listing photos), lifestyle (talent restage / product reference: generate people and lighting from scene text, listing photos as SKU hint only), establishing (no product), end_card. Aliases: talent_restage, product_reference, no_product. Changing stillMode clears start and end stills; generate them again. The response sets stillsCleared and warning when that happens. Do not assign listing photos as keyframes on lifestyle or establishing. On-screen text is burned on at stitch, not painted by the motion model. Search the library with studio_assets.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -271,6 +283,11 @@ const RAW_STUDIO_TOOLS = [
         onScreenText: { type: 'string' },
         keyframeAssetId: { type: 'number' },
         endKeyframeAssetId: { type: 'number' },
+        startAssetId: { type: 'number' },
+        endAssetId: { type: 'number' },
+        renderedAssetId: { type: 'number' },
+        clipAssetId: { type: 'number' },
+        shotPreset: { type: 'string', enum: ['product_orbit', 'material_closeup', 'feature_detail', 'lifestyle_fill', 'product_hero'] },
         label: { type: 'string' },
         subject: { type: 'string' },
         stillMode: { type: 'string', enum: ['listing_orbit', 'lifestyle', 'establishing', 'end_card', 'talent_restage', 'product_reference', 'no_product'] },
@@ -278,27 +295,43 @@ const RAW_STUDIO_TOOLS = [
       },
       required: ['id'],
     },
-    execute: (args) => gql(
-      `mutation UpdateScene($id: ID!, $input: UpdateCreativeSceneInput!) { updateCreativeScene(id: $id, input: $input) { ${SCENE_FIELDS} } }`,
-      {
-        id: String(args.id),
-        input: {
-          label: args.label,
-          subject: args.subject,
-          action: args.action,
-          cameraMove: args.cameraMove,
-          lighting: args.lighting,
-          durationSeconds: args.durationSeconds,
-          voiceover: args.voiceover,
-          onScreenText: args.onScreenText,
-          keyframeAssetId: args.keyframeAssetId ?? undefined,
-          endKeyframeAssetId: args.endKeyframeAssetId ?? undefined,
-          stillMode: args.stillMode || undefined,
-          productId: args.productId ?? undefined,
+    execute: async (args) => {
+      const preset = shotPresetById(args.shotPreset);
+      const payload = await gql(
+        `mutation UpdateScene($id: ID!, $input: UpdateCreativeSceneInput!) { updateCreativeScene(id: $id, input: $input) { ${SCENE_FIELDS} } }`,
+        {
+          id: String(args.id),
+          input: {
+            label: args.label,
+            subject: args.subject,
+            action: args.action,
+            cameraMove: args.cameraMove || preset?.cameraMove,
+            lighting: args.lighting,
+            durationSeconds: args.durationSeconds,
+            voiceover: args.voiceover,
+            onScreenText: args.onScreenText,
+            keyframeAssetId: args.keyframeAssetId ?? args.startAssetId ?? undefined,
+            endKeyframeAssetId: args.endKeyframeAssetId ?? args.endAssetId ?? undefined,
+            renderedAssetId: args.renderedAssetId ?? args.clipAssetId ?? undefined,
+            stillMode: args.stillMode || preset?.stillMode || undefined,
+            productId: args.productId ?? undefined,
+          },
         },
-      },
-      true,
-    ),
+        true,
+      );
+      const scene = payload?.updateCreativeScene || payload;
+      const stillsCleared = Boolean(args.stillMode || preset?.stillMode)
+        && scene
+        && scene.keyframeAssetId == null
+        && scene.endKeyframeAssetId == null
+        && scene.status === 'draft';
+      if (!stillsCleared) return payload;
+      return {
+        ...payload,
+        stillsCleared: true,
+        warning: 'Changing stillMode cleared existing stills. Generate them again.',
+      };
+    },
   },
   {
     name: 'studio_scenes_reorder',
@@ -322,8 +355,48 @@ const RAW_STUDIO_TOOLS = [
     description: 'List scenes with keyframe and clip preview URLs.',
     inputSchema: { type: 'object', properties: { scriptId: { type: 'string' } }, required: ['scriptId'] },
     execute: (args) => gql(
-      `query Scenes($scriptId: ID!) { creativeScriptScenes(scriptId: $scriptId) { ${SCENE_FIELDS} } }`,
+      `query CreativeScriptScenes($scriptId: ID!) { creativeScriptScenes(scriptId: $scriptId) { ${SCENE_FIELDS} } }`,
       { scriptId: String(args.scriptId) },
+    ),
+  },
+  {
+    name: 'studio_assets',
+    description: 'Search this channel library for stills, clips, and earlier renders. kind=image|video|audio. Assign image assetId as startAssetId/endAssetId, or video as clipAssetId, on studio_scene_update. Catalog photos, uploads, and finished Studio renders all appear here.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        scriptId: { type: 'string' },
+        search: { type: 'string' },
+        kind: { type: 'string', enum: ['image', 'video', 'audio'] },
+        take: { type: 'number' },
+      },
+    },
+    execute: (args) => gql(
+      `query CreativeStudioLibrary($scriptId: ID, $search: String, $kind: String, $take: Int) { creativeStudioLibrary(scriptId: $scriptId, search: $search, kind: $kind, take: $take) { ${LIBRARY_FIELDS} } }`,
+      {
+        scriptId: args.scriptId ? String(args.scriptId) : null,
+        search: args.search || null,
+        kind: args.kind || null,
+        take: args.take != null ? Number(args.take) : 40,
+      },
+    ),
+  },
+  {
+    name: 'studio_shot_presets',
+    description: 'Product-first motion presets: product orbit, material close-up, feature detail, lifestyle fill, product hero. Apply with studio_scene_update shotPreset, then studio_render_scenes.',
+    inputSchema: { type: 'object', properties: {} },
+    execute: async () => ({ presets: STUDIO_SHOT_PRESETS }),
+  },
+  {
+    name: 'studio_music_search',
+    description: 'Search this channel for licensed music or audio beds. Pass musicAssetId to studio_stitch_from_script or studio_render_timeline, or set defaultMusicAssetId on studio_brand_kit.',
+    inputSchema: {
+      type: 'object',
+      properties: { search: { type: 'string' }, take: { type: 'number' } },
+    },
+    execute: (args) => gql(
+      `query CreativeStudioLibrary($search: String, $kind: String, $take: Int) { creativeStudioLibrary(search: $search, kind: $kind, take: $take) { ${LIBRARY_FIELDS} } }`,
+      { search: args.search || null, kind: 'audio', take: args.take != null ? Number(args.take) : 40 },
     ),
   },
   {
@@ -379,20 +452,28 @@ const RAW_STUDIO_TOOLS = [
   },
   {
     name: 'studio_render_scenes',
-    description: 'Enqueue motion from approved start and end stills. Pass sceneId for one clip. Without sceneId this charges every scene. Poll studio_job_status for an MP4 (never .mp4.png). quality=standard|hero. engine=luma is the cheap 5s path; cinema/hero is 1080p Veo. Ready clips are free. Use the merchant store (L1), not the supplier channel. Letters burn on at stitch, not in this clip.',
+    description: 'Enqueue motion from approved start and end stills. Pass sceneId for one clip. Without sceneId this charges every scene. Poll studio_job_status for an MP4 (never .mp4.png). quality=standard is about 150; engine=cinema is 350; quality=hero is 1080p Veo at 450. includeAudio adds native ambience on cinema/hero. Length follows the scene duration (about 3 to 4 seconds). Ready clips are free. Use the merchant store (L1), not the supplier channel. Letters burn on at stitch, not in this clip. product_hero cameraMove keeps the SKU in frame.',
     inputSchema: {
       type: 'object',
-      properties: { scriptId: { type: 'string' }, sceneId: { type: 'string' }, engine: { type: 'string' }, quality: { type: 'string' }, force: { type: 'boolean' } },
+      properties: {
+        scriptId: { type: 'string' },
+        sceneId: { type: 'string' },
+        engine: { type: 'string' },
+        quality: { type: 'string' },
+        force: { type: 'boolean' },
+        includeAudio: { type: 'boolean' },
+      },
       required: ['scriptId'],
     },
     execute: (args) => gql(
-      `mutation EnqueueRenders($scriptId: ID!, $sceneId: ID, $engine: String, $force: Boolean, $quality: String) { enqueueCreativeSceneRenders(scriptId: $scriptId, sceneId: $sceneId, engine: $engine, force: $force, quality: $quality) { jobId estimatedMs } }`,
+      `mutation EnqueueRenders($scriptId: ID!, $sceneId: ID, $engine: String, $force: Boolean, $quality: String, $includeAudio: Boolean) { enqueueCreativeSceneRenders(scriptId: $scriptId, sceneId: $sceneId, engine: $engine, force: $force, quality: $quality, includeAudio: $includeAudio) { jobId estimatedMs } }`,
       {
         scriptId: String(args.scriptId),
         sceneId: args.sceneId ? String(args.sceneId) : null,
         engine: args.engine || null,
         force: args.force === true,
         quality: args.quality || null,
+        includeAudio: args.includeAudio === true,
       },
       true,
     ),
@@ -755,12 +836,14 @@ const RAW_STUDIO_TOOLS = [
       },
     },
     execute: async (args) => {
-      const pricing = await gql(`query { creativeStudioPricing { canSpend balance scriptPack scriptRevise keyframePerScene videoStandardPerScene videoPremiumPerScene videoCinemaPerScene timelineStitchStandard } }`);
+      const pricing = await gql(`query { creativeStudioPricing { canSpend balance scriptPack scriptRevise keyframePerScene videoStandardPerScene videoPremiumPerScene videoCinemaPerScene videoHeroPerScene timelineStitchStandard timelineStitchPremium } }`);
       const p = pricing.creativeStudioPricing || {};
       const scenes = Math.max(1, Math.min(8, Number(args.sceneCount) || 3));
       const quality = String(args.quality || 'standard').toLowerCase();
-      const motionUnit = quality === 'hero' || quality === 'cinema'
-        ? Number(p.videoCinemaPerScene || 350)
+      const motionUnit = quality === 'hero'
+        ? Number(p.videoHeroPerScene || 450)
+        : quality === 'cinema'
+          ? Number(p.videoCinemaPerScene || 350)
         : quality === 'premium' || quality === 'kling'
           ? Number(p.videoPremiumPerScene || 150)
           : Number(p.videoStandardPerScene || 150);
@@ -791,7 +874,7 @@ const RAW_STUDIO_TOOLS = [
   },
   {
     name: 'studio_stitch_from_script',
-    description: 'Stitch rendered scenes for a script. Pass sceneIds to swap clip order. Overlays burn merchant on-screen text and CTA here. Voiceover stays off unless includeVoiceover is true and a voice is locked. Warns if the end card is over 4 seconds. The result URL must be an MP4.',
+    description: 'Stitch rendered scenes for a script. Pass sceneIds to swap clip order. Each clip is sceneId only, trimmed to that scene duration (about 3 to 4 seconds). qualityTier=draft|standard|premium|cinema|hero (cinema/hero bill as premium, 80 credits). Overlays burn merchant on-screen text and CTA here. Voiceover stays off unless includeVoiceover is true and a voice is locked. musicAssetId from studio_music_search. Warns if the end card is over 4 seconds. The result URL must be an MP4.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -799,12 +882,13 @@ const RAW_STUDIO_TOOLS = [
         sceneIds: { type: 'array', items: { type: 'string' } },
         includeVoiceover: { type: 'boolean' },
         qualityTier: { type: 'string' },
+        musicAssetId: { type: 'number' },
       },
       required: ['scriptId'],
     },
     execute: async (args) => {
       const scenesRes = await gql(
-        `query Scenes($scriptId: ID!) { creativeScriptScenes(scriptId: $scriptId) { ${SCENE_FIELDS} } }`,
+        `query CreativeScriptScenes($scriptId: ID!) { creativeScriptScenes(scriptId: $scriptId) { ${SCENE_FIELDS} } }`,
         { scriptId: String(args.scriptId) },
       );
       const scenes = scenesRes.creativeScriptScenes || [];
@@ -823,6 +907,7 @@ const RAW_STUDIO_TOOLS = [
             qualityTier: args.qualityTier || 'standard',
             includeVoiceover: args.includeVoiceover === true,
             burnOverlays: true,
+            musicAssetId: args.musicAssetId || null,
           },
         },
         true,

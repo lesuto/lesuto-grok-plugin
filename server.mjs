@@ -10,6 +10,8 @@ import { deniedOp, extractFields } from './lib/denied-ops.mjs';
 import { connectTools } from './tools/connect.mjs';
 import { commerceTools } from './tools/commerce.mjs';
 import { marketplaceTools } from './tools/marketplace.mjs';
+import { catalogTools } from './tools/catalog.mjs';
+import { sitesTools } from './tools/sites.mjs';
 import { hubTools } from './tools/hub.mjs';
 import { blogTools } from './tools/blog.mjs';
 import { storeTools } from './tools/stores.mjs';
@@ -23,7 +25,7 @@ const PROTOCOL = '2024-11-05';
 const TOOLS = [
   {
     name: 'lesuto_graphql',
-    description: 'Run a Lesuto admin GraphQL query as this store. Reads only. Use named tools for Connect invites, blog, Hub posts, stock, shipping labels, subscribe, and deployments.',
+    description: 'Run a Lesuto admin GraphQL query as this store. Reads only. Use named tools for Connect invites, blog, Hub posts, stock, shipping labels, subscribe, catalog setup, site unwrap, and deployments.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -37,6 +39,8 @@ const TOOLS = [
   ...connectTools,
   ...commerceTools,
   ...marketplaceTools,
+  ...catalogTools,
+  ...sitesTools,
   ...hubTools,
   ...blogTools,
   ...storeTools,

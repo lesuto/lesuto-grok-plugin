@@ -28,6 +28,12 @@ const EXPECTED_TOOLS = [
   'list_organizations', 'org_overview',
   'marketplace_operator_guide', 'list_subscriptions', 'subscribe_to_supplier',
   'list_deployments', 'list_channel_domains',
+  'catalog_operator_guide', 'suggest_catalog', 'create_store', 'create_store_collection',
+  'add_products_to_store', 'add_products_to_collection',
+  'collection_banner_options', 'set_store_collection_details',
+  'preview_smart_collection', 'create_smart_collection', 'update_smart_collection_rule',
+  'list_supplier_collections', 'subscribe_to_supplier_collection',
+  'sites_operator_guide', 'list_site_logins', 'suggest_site_install', 'unwrap_site_login',
 ];
 
 const DESTRUCTIVE_TOOLS = ['cancel_booking', 'complete_booking', 'no_show_booking', 'buy_shipping_label'];

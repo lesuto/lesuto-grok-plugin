@@ -119,6 +119,10 @@ test('adminGraphql refuses denied operations without fetching', async () => {
         () => adminGraphql('query { storePosts { id mentionedCustomerIds } }'),
         /Field 'mentionedCustomerIds' is not permitted/,
       );
+      await assert.rejects(
+        () => adminGraphql('query { Scenes { id } }'),
+        /studio_scenes/,
+      );
       assert.equal(calls.length, 0);
     });
   });

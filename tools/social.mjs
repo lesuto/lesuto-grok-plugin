@@ -29,13 +29,15 @@ export function engineForNativeAudio(engine, includeAudio) {
 
 export const SOCIAL_OPERATOR_GUIDE = `You operate Lesuto Social Studio as this merchant. Hub is a separate surface. Social Studio publishes to Instagram, Facebook, Pinterest, X, LinkedIn, TikTok, and YouTube, not to Hub.
 
+Named tools (use these; lesuto_graphql is read-only and refuses Scenes and writes): studio_operator_guide, studio_still_modes, studio_stores, studio_scenes, studio_scene_update, studio_scenes_build, studio_scenes_reorder, studio_catalog_angles, studio_assets, studio_shot_presets, studio_music_search, studio_keyframes, studio_keyframe_regenerate, studio_job_status, studio_render_scenes, studio_stitch_from_script, studio_render_timeline, studio_export_status, studio_reconstruct_3d, studio_produce_video. Changing stillMode on studio_scene_update clears start and end stills; generate them again. Assign library stills with startAssetId/endAssetId and clips with clipAssetId. quality=hero is 450 credits; engine=cinema is 350. Stitch cinema/hero bills premium (80). studio_render_scenes includeAudio adds native ambience.
+
 Workflow:
 1. Read brand voice, connections, and growth lines.
 2. Draft a growth line with social_growth_line_draft if none exists, then save after the merchant would review it.
 3. Draft a campaign with social_campaign_draft, show the credit estimate, then save, reserve, and arm.
 4. Call studio_video_plan before spend. For a written product ad, use stepwise studio_* tools: character, look, voice lock, brief with productId, script, then either listing-photo frames or talent restage. studio_produce_video is the hands-free shortcut. Quote AI credits, then confirm true. Call studio_stores when this merchant has more than one Hub store. Do not pass list_stores L-codes as storeId. Use the merchant store (L1), not the supplier channel. Poll studio_job_status. Length snaps to 6, 8, 15, or 30 seconds. studio_produce_video includeAudio is spoken VO (locked character voice). For Veo native sound design (ambiance and SFX, not a named song), use social_generate_video with includeAudio true. That uses Cinema. Do not name artists or commercial tracks.
-5. Each scene has stillMode. Call studio_still_modes if you need the contract. listing_orbit (listing photos): paste studio_catalog_angles as start and end frames. lifestyle (talent restage / product reference): generate people, wardrobe, action, and lighting from the scene text; listing photos are SKU reference only. establishing (no product): villa driveway, sky, B-roll, no SKU in frame. end_card: overlay copy. Aliases on studio_scene_update: talent_restage, product_reference, no_product. Set stillMode before keyframes. Always use studio_keyframes or studio_keyframe_regenerate so you get a jobId; poll studio_job_status. Never call generateCreativeKeyframes (no job, silent skips). If which=end does nothing, read the error. Read errorMessage if status is failed. Do not put the SKU title in a motion prompt. On-screen copy is only the headline and CTA the merchant wrote. Burn that on at stitch (overlays on). Do not ask the motion model to paint letters. Swap beats with studio_scenes_reorder (every scene id once) or studio_stitch_from_script sceneIds.
-6. outputUrl must be an MP4. A URL ending in .mp4.png is a broken document-icon poster, not the clip. Do not show it as the video and do not put it in mediaItems. Wait for stitch outputUrl or the asset source MP4.
+5. Each scene has stillMode. Call studio_still_modes if you need the contract. listing_orbit (listing photos): paste studio_catalog_angles as start and end frames. lifestyle (talent restage / product reference): generate people, wardrobe, action, and lighting from the scene text; listing photos are SKU reference only. establishing (no product): villa driveway, sky, B-roll, no SKU in frame. end_card: overlay copy. Aliases on studio_scene_update: talent_restage, product_reference, no_product. Set stillMode before keyframes. Changing stillMode clears stills. Always use studio_keyframes or studio_keyframe_regenerate so you get a jobId; poll studio_job_status. Never call generateCreativeKeyframes (no job, silent skips). If which=end does nothing, read the error. Read errorMessage if status is failed. Do not put the SKU title in a motion prompt. On-screen copy is only the headline and CTA the merchant wrote. Burn that on at stitch (overlays on). Do not ask the motion model to paint letters. Swap beats with studio_scenes_reorder (every scene id once) or studio_stitch_from_script sceneIds.
+6. For keyframe jobs, outputUrl is the PNG still for that scene and slot, totalCreditsUsed is the charge, and steps.assetId is the written still. For video jobs, outputUrl must be an MP4. A URL ending in .mp4.png is a broken document-icon poster, not the clip. Do not show a poster as the video and do not put it in mediaItems. Wait for stitch outputUrl or the asset source MP4.
 7. studio_reconstruct_3d is an optional GLB mesh (150 credits standard TRELLIS, 350 premium Hunyuan). Listing photos are enough for an accurate SKU clip. Do not run 3D unless they asked for a 3D object. 3D is not USDZ and is not fed into Luma.
 8. Stop after stills and after the MP4 so the merchant can approve. Schedule posts with social_post_schedule and mediaItems (the MP4 URL) at an exact ISO scheduledAt. They land in the review queue. Resolve with studio_review_resolve.
 9. After Social Studio publishes, call social_posts with status posted and show publishedUrl. That is the Instagram, TikTok, YouTube, or other network permalink. Drafts and review items have none until they post. social_connections lists this merchant's connected accounts (platform plus accountName). It is not a Hub shopper list. Never invent a customer directory.
@@ -74,15 +76,21 @@ export function annotateStudioJobMedia(payload) {
   const looksLikeMp4 = (url) => /\.mp4(\?|$)/i.test(url) && !looksLikePoster(url);
   const playableOutputUrl = looksLikeMp4(outputUrl) ? outputUrl : null;
   const posterIsNotTheVideo = looksLikePoster(outputUrl) || stepPreviews.some(looksLikePoster);
+  const stillAssetId = Number(result.steps?.[0]?.assetId) || null;
+  const looksLikeStill = /\.(png|jpe?g|webp)(\?|$)/i.test(outputUrl) && !looksLikePoster(outputUrl);
   return {
     ...payload,
     playableOutputUrl,
+    stillAssetId: stillAssetId || undefined,
+    stillOutputUrl: looksLikeStill ? outputUrl : undefined,
     posterIsNotTheVideo,
     mediaNote: playableOutputUrl
       ? 'Use playableOutputUrl / outputUrl as the MP4. Do not schedule a .mp4.png poster.'
       : posterIsNotTheVideo
         ? 'A .mp4.png URL is a broken document-icon still, not the video. Do not show it as the clip. Wait for stitch outputUrl ending in .mp4.'
-        : undefined,
+        : looksLikeStill
+          ? 'Keyframe outputUrl is the PNG still for this scene and slot. Read steps.assetId and totalCreditsUsed.'
+          : undefined,
   };
 }
 
@@ -360,7 +368,7 @@ const RAW_SOCIAL_TOOLS = [
   },
   {
     name: 'studio_job_status',
-    description: 'Poll an async media job (produce, keyframes, scene render, 3D). Use outputUrl only when it is an MP4. A .mp4.png URL is a broken poster, not the clip.',
+    description: 'Poll an async media job (produce, keyframes, scene render, 3D). For keyframe jobs, outputUrl is the PNG still, steps.assetId is the written still, and totalCreditsUsed is the charge. For video, use outputUrl only when it is an MP4. A .mp4.png URL is a broken poster, not the clip.',
     inputSchema: {
       type: 'object',
       properties: { jobId: { type: 'string' } },
@@ -368,7 +376,7 @@ const RAW_SOCIAL_TOOLS = [
     },
     execute: async (args) => {
       const payload = await adminGraphql(
-        `query JobStatus($jobId: ID!) { aiMediaJobStatus(jobId: $jobId) { id state progress result { success totalCreditsUsed errorMessage outputUrl steps { preview success error } } duration } }`,
+        `query JobStatus($jobId: ID!) { aiMediaJobStatus(jobId: $jobId) { id state progress result { success totalCreditsUsed errorMessage outputUrl steps { stepId assetId preview creditsUsed success error } } duration } }`,
         { jobId: String(args.jobId) },
       );
       return annotateStudioJobMedia(payload);

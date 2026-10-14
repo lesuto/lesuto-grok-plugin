@@ -37,7 +37,7 @@ Grok acts as **you** on the stores that key covers. Start with the big picture, 
 - `list_stores` and `use_store` when you want one merchant or supplier store (L1, L2, or the store name)
 - `lesuto_graphql` for extra reads. Writes go through named tools.
 
-Jobs: **Read**, **Connect**, **Content**, **Social**, **Fulfillment**, or **All jobs** (Connect, Content, Social, and Fulfillment on one secret). Docs: [AI Agent Access](https://docs.lesuto.com/docs/integrations/ai-agent-access).
+Jobs: **Read** is always on. Tick **Connect**, **Content**, **Social**, **Fulfillment**, plus extra **Catalog** and **Sites**. **All operate** is the four operate jobs only. Catalog creates stores, subscribes suppliers, and stocks aisles. Sites unwraps a bot host login for the login form only. Never print that secret in chat. Docs: [AI Agent Access](https://docs.lesuto.com/docs/integrations/ai-agent-access).
 
 Public guests still book on your Connect page. Grok creates invite links. Pass a guest email only when you asked to send the invite.
 

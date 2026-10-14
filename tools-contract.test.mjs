@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { deniedOp, extractFields } from './lib/denied-ops.mjs';
 import { TOOLS } from './server.mjs';
 import { commerceTools } from './tools/commerce.mjs';
+import { marketplaceTools, MARKETPLACE_OPERATOR_GUIDE } from './tools/marketplace.mjs';
 import { jsonResponse, pluginRoot, withAgentEnv, withMockFetch } from './test/helpers.mjs';
 
 test('every tool has execute, schema, and a unique name', () => {
@@ -26,7 +27,7 @@ test('org and store rollup tools skip the channel token', () => {
 });
 
 test('tool GraphQL operations are not on the merchant denylist', () => {
-  for (const rel of ['tools/connect.mjs', 'tools/commerce.mjs', 'tools/hub.mjs', 'tools/blog.mjs', 'tools/stores.mjs', 'tools/org.mjs', 'tools/social.mjs', 'tools/studio.mjs', 'tools/studio-extra.mjs']) {
+  for (const rel of ['tools/connect.mjs', 'tools/commerce.mjs', 'tools/hub.mjs', 'tools/blog.mjs', 'tools/stores.mjs', 'tools/org.mjs', 'tools/social.mjs', 'tools/studio.mjs', 'tools/studio-extra.mjs', 'tools/marketplace.mjs']) {
     const src = readFileSync(join(pluginRoot, rel), 'utf8');
     const blocks = [...src.matchAll(/`((?:query|mutation)[\s\S]*?)`/g)].map((m) => m[1]);
     assert.ok(blocks.length > 0, rel);
@@ -337,6 +338,10 @@ test('studio stitch clip order and talent restage tools exist', async () => {
   assert.equal(/becomes the opening hook/i.test(reorder.description), false);
   assert.match(studioTools.find((t) => t.name === 'studio_keyframe_regenerate').description, /stillMode/);
   assert.match(studioTools.find((t) => t.name === 'studio_scene_update').description, /listing_orbit/);
+  const stillModes = studioTools.find((t) => t.name === 'studio_still_modes');
+  assert.ok(stillModes);
+  assert.match(stillModes.description, /talent_restage/);
+  assert.match(stillModes.description, /no_product/);
 });
 
 test('studio_job_status ignores .mp4.png posters', async () => {
@@ -470,4 +475,30 @@ test('studio GraphQL retries without stillMode on schema lag and refuses silent 
     ),
     /Still mode is not on this API yet/,
   );
+});
+
+test('marketplace tools are registered and subscribe is confirm-gated channel_only', async () => {
+  for (const name of ['marketplace_operator_guide', 'list_subscriptions', 'subscribe_to_supplier', 'list_deployments', 'list_channel_domains']) {
+    assert.ok(TOOLS.some((t) => t.name === name), name);
+  }
+  assert.match(MARKETPLACE_OPERATOR_GUIDE, /channel_only/);
+  assert.match(MARKETPLACE_OPERATOR_GUIDE, /mySubscriptions/);
+  assert.match(MARKETPLACE_OPERATOR_GUIDE, /There is no supplierSubscriptions query/);
+  const subscribe = marketplaceTools.find((t) => t.name === 'subscribe_to_supplier');
+  await withAgentEnv(async () => {
+    await assert.rejects(
+      () => Promise.resolve().then(() => subscribe.execute({ supplierChannelId: '9' })),
+      /confirm: true/,
+    );
+    await withMockFetch((_url, init) => {
+      const body = JSON.parse(init.body);
+      assert.match(body.query, /subscribeToSupplier/);
+      assert.equal(body.variables.storeRoutingMode, 'channel_only');
+      assert.equal(body.variables.subscriptionType, 'selective');
+      assert.equal(body.variables.targetDeploymentIds, null);
+      return jsonResponse(200, { data: { subscribeToSupplier: true } });
+    }, async () => {
+      await subscribe.execute({ supplierChannelId: '9', confirm: true });
+    });
+  });
 });

@@ -26,6 +26,8 @@ const EXPECTED_TOOLS = [
   'hub_publish_scene',
   'list_stores', 'use_store', 'account_overview',
   'list_organizations', 'org_overview',
+  'marketplace_operator_guide', 'list_subscriptions', 'subscribe_to_supplier',
+  'list_deployments', 'list_channel_domains',
 ];
 
 const DESTRUCTIVE_TOOLS = ['cancel_booking', 'complete_booking', 'no_show_booking', 'buy_shipping_label'];

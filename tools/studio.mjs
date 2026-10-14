@@ -233,6 +233,20 @@ const RAW_STUDIO_TOOLS = [
     ),
   },
   {
+    name: 'studio_still_modes',
+    description: 'Still contract for product-linked scenes. listing_orbit = listing photos as the frame. lifestyle / talent_restage / product_reference = generate people, wardrobe, action, and lighting from scene text; listing photos are SKU reference only. establishing / no_product = no SKU in frame. end_card = overlay copy. Set stillMode on studio_scene_update, then enqueue stills.',
+    inputSchema: { type: 'object', properties: {} },
+    execute: async () => ({
+      modes: [
+        { stillMode: 'listing_orbit', aliases: ['listing'], use: 'Paste listing photos as start and end frames. Charge 0.' },
+        { stillMode: 'lifestyle', aliases: ['talent_restage', 'product_reference'], use: 'Generate the scene as written (people, wardrobe, action, lighting). Listing photos are a weak SKU hint only.' },
+        { stillMode: 'establishing', aliases: ['no_product'], use: 'No SKU in frame. Villa driveway, sky, B-roll.' },
+        { stillMode: 'end_card', aliases: [], use: 'Overlay copy at stitch. Do not generate a product still.' },
+      ],
+      enqueue: 'studio_keyframes and studio_keyframe_regenerate return a jobId. Poll studio_job_status. Never call generateCreativeKeyframes.',
+    }),
+  },
+  {
     name: 'studio_scenes_build',
     description: 'Build the shot list from the selected script. Each scene gets stillMode (listing_orbit, lifestyle, establishing, end_card). Confirm or set stillMode with studio_scene_update before keyframes.',
     inputSchema: { type: 'object', properties: { scriptId: { type: 'string' } }, required: ['scriptId'] },
@@ -244,7 +258,7 @@ const RAW_STUDIO_TOOLS = [
   },
   {
     name: 'studio_scene_update',
-    description: 'Edit one scene: stillMode (listing_orbit | lifestyle | establishing | end_card), action, cameraMove, lighting, voiceover, onScreenText, listing start/end asset ids, duration, productId. stillMode is the still contract. listing_orbit pastes catalog photos. lifestyle generates people-in-product stills and uses listing photos as SKU reference only. establishing has no SKU in frame. end_card is overlay copy. Changing stillMode clears stills. Do not assign listing photos as keyframes on lifestyle or establishing. On-screen text is burned on at stitch, not painted by the motion model.',
+    description: 'Edit one scene: stillMode, action, cameraMove, lighting, voiceover, onScreenText, listing start/end asset ids, duration, productId. stillMode is the still contract: listing_orbit (listing photos), lifestyle (talent restage / product reference: generate people and lighting from scene text, listing photos as SKU hint only), establishing (no product), end_card. Aliases: talent_restage, product_reference, no_product. Changing stillMode clears stills. Do not assign listing photos as keyframes on lifestyle or establishing. On-screen text is burned on at stitch, not painted by the motion model.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -259,7 +273,7 @@ const RAW_STUDIO_TOOLS = [
         endKeyframeAssetId: { type: 'number' },
         label: { type: 'string' },
         subject: { type: 'string' },
-        stillMode: { type: 'string', enum: ['listing_orbit', 'lifestyle', 'establishing', 'end_card'] },
+        stillMode: { type: 'string', enum: ['listing_orbit', 'lifestyle', 'establishing', 'end_card', 'talent_restage', 'product_reference', 'no_product'] },
         productId: { type: 'number' },
       },
       required: ['id'],
@@ -332,7 +346,7 @@ const RAW_STUDIO_TOOLS = [
   },
   {
     name: 'studio_keyframes',
-    description: 'Enqueue stills. Pass sceneId for one beat. Poll studio_job_status for jobId. Listing-orbit stills reuse catalog photos and charge 0. People or setting beats generate from the scene text (about 12 AI credits) and use listing photos only as SKU reference. Read errorMessage on a failed scene. Without sceneId this charges every generated scene. Use the merchant store (L1), not the supplier channel. Stop and show still URLs before paying for motion. JPEG/PNG stills only; ignore any .mp4.png poster.',
+    description: 'Enqueue stills and return jobId. Pass sceneId and which=start|end for one beat. Poll studio_job_status. Listing-orbit reuses catalog photos (0 credits). lifestyle/establishing generate from the full scene text (about 12 AI credits); listing photos are SKU reference only. which=end always generates or returns an error. Read errorMessage on a failed scene. Use the merchant store (L1). JPEG/PNG stills only.',
     inputSchema: {
       type: 'object',
       properties: { scriptId: { type: 'string' }, sceneId: { type: 'string' }, which: { type: 'string' }, force: { type: 'boolean' } },

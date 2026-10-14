@@ -172,7 +172,7 @@ test('blog_delete is not a tool', () => {
 test('skills cover Connect, catalog, orders, analytics, organizations, and Social Studio', () => {
   const dir = join(pluginRoot, 'skills');
   const names = readdirSync(dir);
-  for (const need of ['lesuto-connect', 'lesuto-catalog', 'lesuto-orders', 'lesuto-analytics', 'lesuto-organizations', 'lesuto-social']) {
+  for (const need of ['lesuto-connect', 'lesuto-catalog', 'lesuto-chrome-toolkit', 'lesuto-orders', 'lesuto-analytics', 'lesuto-organizations', 'lesuto-social']) {
     assert.ok(names.includes(need), need);
     const skill = readFileSync(join(dir, need, 'SKILL.md'), 'utf8');
     assert.match(skill, /api\.lesuto\.com|Lesuto/);
@@ -190,6 +190,10 @@ test('skills cover Connect, catalog, orders, analytics, organizations, and Socia
   assert.match(orders, /Never mint/);
   const catalog = readFileSync(join(dir, 'lesuto-catalog/SKILL.md'), 'utf8');
   assert.match(catalog, /search_catalog/);
+  const chromeToolkit = readFileSync(join(dir, 'lesuto-chrome-toolkit/SKILL.md'), 'utf8');
+  assert.match(chromeToolkit, /https:\/\/cdn\.lesuto\.com\/chrome-toolkit\/lesuto-chameleon-toolkit\.zip/);
+  assert.match(chromeToolkit, /Load unpacked/);
+  assert.doesNotMatch(chromeToolkit, /admin\.lesuto\.com/);
   const analytics = readFileSync(join(dir, 'lesuto-analytics/SKILL.md'), 'utf8');
   assert.match(analytics, /channel_analytics/);
   const orgs = readFileSync(join(dir, 'lesuto-organizations/SKILL.md'), 'utf8');

@@ -6,7 +6,7 @@ Open listing PR: [xai-org/plugin-marketplace#828](https://github.com/xai-org/plu
 
 Public source (Grok clones this SHA): https://github.com/lesuto/lesuto-grok-plugin
 
-Plugin file changes in Lesuto-Chameleon publish to that public repo via `.github/workflows/publish-lesuto-grok-plugin.yml` (push to `develop` when `lesuto-grok-plugin/` changes, or Actions → Publish Lesuto Grok Plugin). Local: `./scripts/publish-lesuto-grok-plugin.sh`.
+Plugin file changes in Lesuto-Chameleon publish to that public repo via `.github/workflows/publish-lesuto-grok-plugin.yml` after Security scan succeeds on `develop`, or Actions → Publish Lesuto Grok Plugin. Local: `./scripts/publish-lesuto-grok-plugin.sh`. The public packet is leak-scanned (`public-leak.test.mjs`) before the mirror push.
 
 ## Catalog entry
 

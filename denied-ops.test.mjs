@@ -22,6 +22,9 @@ test('denies staff CRM and key minting field names', () => {
   assert.equal(deniedOp('me'), false);
   assert.equal(deniedOp('upsertTeamMember'), true);
   assert.equal(deniedOp('purchaseIntegrationCredits'), true);
+  assert.equal(deniedOp('confirmPlatformPurchase'), true);
+  assert.equal(deniedOp('changeAddon'), true);
+  assert.equal(deniedOp('cancelAddon'), true);
   assert.equal(deniedOp('organizationOverview'), false);
   assert.equal(deniedOp('myOrganizations'), false);
   assert.equal(deniedOp('updateProduct'), true);

@@ -145,7 +145,7 @@ LESUTO_CHANNEL_TOKEN=merchant_your-slug_admin
 - Put talent seated in the chair: set the scene action, regenerate stills with force, then render. Swap scene order, then stitch.
 - Build a 3D GLB from this product's listing photos only if I asked for a mesh.
 
-Skills in `skills/` (`lesuto-connect`, `lesuto-catalog`, `lesuto-orders`, `lesuto-analytics`, `lesuto-organizations`, `lesuto-social`) tell the agent which tool to start with.
+Skills in `skills/` (`lesuto-analytics`, `lesuto-catalog`, `lesuto-chrome-toolkit`, `lesuto-connect`, `lesuto-orders`, `lesuto-organizations`, `lesuto-social`) tell the agent which tool to start with. The Chrome Toolkit zip is `https://cdn.lesuto.com/chrome-toolkit/lesuto-chameleon-toolkit.zip`.
 
 ## Cursor, Claude, ChatGPT, and scripts (same key)
 

@@ -111,15 +111,30 @@ test('marketplace packet pins a 40-char SHA and the public repo', () => {
   assert.match(doc, /Code-owner review is required/);
 });
 
+test('Chrome Toolkit skill points at the public CDN zip', () => {
+  const skill = read('skills/lesuto-chrome-toolkit/SKILL.md');
+  const wf = join(pluginRoot, '../.github/workflows/publish-chrome-toolkit-cdn.yml');
+  assert.equal(existsSync(wf), true);
+  const yaml = readFileSync(wf, 'utf8');
+  assert.match(yaml, /ZIP_NAME: lesuto-chameleon-toolkit\.zip/);
+  assert.match(yaml, /CDN_PREFIX: chrome-toolkit/);
+  assert.match(yaml, /https:\/\/cdn\.lesuto\.com\/\$\{\{ env\.CDN_PREFIX \}\}\/\$\{\{ env\.ZIP_NAME \}\}/);
+  assert.match(skill, /https:\/\/cdn\.lesuto\.com\/chrome-toolkit\/lesuto-chameleon-toolkit\.zip/);
+  assert.equal(skill.includes('admin.lesuto.com'), false);
+  assert.equal(skill.includes('chameleon-admin'), false);
+});
+
 test('monorepo publish workflow mirrors plugin changes to the public repo', () => {
   const wf = join(pluginRoot, '../.github/workflows/publish-lesuto-grok-plugin.yml');
   if (!existsSync(wf)) return;
   const yaml = readFileSync(wf, 'utf8');
-  assert.match(yaml, /lesuto-grok-plugin\/\*\*/);
+  assert.match(yaml, /workflow_run/);
+  assert.match(yaml, /Security scan/);
+  assert.match(yaml, /head_branch == 'develop'/);
+  assert.match(yaml, /workflow_run\.head_sha/);
   assert.match(yaml, /publish-lesuto-grok-plugin\.sh/);
   assert.match(yaml, /LESUTO_GROK_PLUGIN_DEPLOY_KEY/);
   assert.match(yaml, /environment: grok-plugin/);
-  assert.match(yaml, /branches: \[develop\]/);
 });
 
 test('README rate limits match the gateway constants', () => {

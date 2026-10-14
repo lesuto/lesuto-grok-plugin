@@ -128,10 +128,10 @@ test('monorepo publish workflow mirrors plugin changes to the public repo', () =
   const wf = join(pluginRoot, '../.github/workflows/publish-lesuto-grok-plugin.yml');
   if (!existsSync(wf)) return;
   const yaml = readFileSync(wf, 'utf8');
-  assert.match(yaml, /workflow_run/);
-  assert.match(yaml, /Security scan/);
-  assert.match(yaml, /head_branch == 'develop'/);
-  assert.match(yaml, /workflow_run\.head_sha/);
+  assert.match(yaml, /lesuto-grok-plugin\/\*\*/);
+  assert.match(yaml, /branches: \[develop\]/);
+  assert.match(yaml, /Wait for Security scan/);
+  assert.match(yaml, /security-scan\.yml/);
   assert.match(yaml, /publish-lesuto-grok-plugin\.sh/);
   assert.match(yaml, /LESUTO_GROK_PLUGIN_DEPLOY_KEY/);
   assert.match(yaml, /environment: grok-plugin/);

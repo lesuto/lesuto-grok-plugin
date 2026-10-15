@@ -533,7 +533,7 @@ test('marketplace tools are registered and subscribe is confirm-gated channel_on
 });
 
 test('catalog tools stay on add/remove and never createProduct', async () => {
-  for (const name of ['catalog_operator_guide', 'suggest_catalog', 'create_store', 'create_store_collection', 'add_products_to_store', 'add_products_to_collection', 'collection_banner_options', 'set_store_collection_details', 'preview_smart_collection', 'create_smart_collection', 'update_smart_collection_rule', 'list_supplier_collections', 'subscribe_to_supplier_collection']) {
+  for (const name of ['catalog_operator_guide', 'suggest_catalog', 'create_store', 'create_store_collection', 'add_products_to_store', 'add_products_to_collection', 'collection_banner_options', 'set_store_collection_details', 'preview_smart_collection', 'create_smart_collection', 'update_smart_collection_rule', 'list_supplier_collections', 'subscribe_to_supplier_collection', 'duplicate_collection_to_store', 'duplicate_supplier_collection']) {
     assert.ok(TOOLS.some((t) => t.name === name), name);
   }
   assert.match(CATALOG_OPERATOR_GUIDE, /createProduct/);
@@ -589,4 +589,6 @@ test('sites unwrap never documents printing the secret', () => {
   assert.equal(deniedOp('createProduct'), true);
   assert.equal(deniedOp('updateMerchantCollection'), true);
   assert.equal(deniedOp('createMerchantCollection'), false);
+  assert.equal(deniedOp('duplicateCollectionToStore'), false);
+  assert.equal(deniedOp('duplicateSupplierCollection'), false);
 });

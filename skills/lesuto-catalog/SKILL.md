@@ -7,7 +7,7 @@ description: Search and inspect this channel catalog on Lesuto Seller. Use for l
 
 - Use `search_catalog` for product lookup.
 - Use `suggest_catalog` for live home-plan suppliers and products.
-- Use `create_store`, `create_store_collection`, `preview_smart_collection`, `create_smart_collection`, `update_smart_collection_rule`, `list_supplier_collections`, `subscribe_to_supplier_collection`, `add_products_to_store`, `add_products_to_collection`, `collection_banner_options`, and `set_store_collection_details` when the key has Catalog. Confirm true is required on writes.
+- Use `create_store`, `create_store_collection`, `preview_smart_collection`, `create_smart_collection`, `update_smart_collection_rule`, `list_supplier_collections`, `subscribe_to_supplier_collection`, `duplicate_collection_to_store`, `duplicate_supplier_collection`, `add_products_to_store`, `add_products_to_collection`, `collection_banner_options`, and `set_store_collection_details` when the key has Catalog. Confirm true is required on writes.
 - Smart search needs a website plus at least one keyword, product type, supplier, or facet. Never call `autoGenerateCollections` or `updateStoreAutoSync`.
 - Set a collection banner from an aisle product (`bannerProductId`) or a library image (`featuredAssetId`). Never call `updateMerchantCollection`.
 - Use `subscribe_to_supplier` (confirm true). Do not call `createProduct` or `createCollection`.

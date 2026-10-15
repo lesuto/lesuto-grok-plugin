@@ -33,6 +33,7 @@ const EXPECTED_TOOLS = [
   'collection_banner_options', 'set_store_collection_details',
   'preview_smart_collection', 'create_smart_collection', 'update_smart_collection_rule',
   'list_supplier_collections', 'subscribe_to_supplier_collection',
+  'duplicate_collection_to_store', 'duplicate_supplier_collection',
   'sites_operator_guide', 'list_site_logins', 'suggest_site_install', 'unwrap_site_login',
 ];
 

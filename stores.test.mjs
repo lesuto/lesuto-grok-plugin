@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { handle, TOOLS } from './server.mjs';
 import { resetStickyStore } from './lib/store-state.mjs';
 import { jsonResponse, withAgentEnv, withEnv, withMockFetch } from './test/helpers.mjs';
@@ -52,6 +55,12 @@ test('list_stores and use_store switch sticky store for later calls', async () =
   resetStickyStore();
 });
 
+test('account_overview uses live creditBalance, not a hardcoded 2000', () => {
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'tools', 'stores.mjs'), 'utf8');
+  assert.match(src, /creditBalance/);
+  assert.equal(/creditBalance\s*[:=]\s*2000/.test(src), false);
+});
+
 test('account_overview rolls up without a sticky store', async () => {
   resetStickyStore();
   const tool = TOOLS.find((t) => t.name === 'account_overview');
@@ -86,6 +95,8 @@ test('use_store accepts channel code and rejects unknown stores', async () => {
     await withMockFetch(() => jsonResponse(200, { data: { accessibleStores: STORES } }), async () => {
       const switched = await use.execute({ store: 'merchant_north' });
       assert.equal(switched.active, 'L1');
+      const byName = await use.execute({ store: 'North Shop' });
+      assert.equal(byName.active, 'L1');
       await assert.rejects(() => use.execute({ store: 'nope' }), /not on this key/);
     });
   });

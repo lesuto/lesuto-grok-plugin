@@ -11,7 +11,7 @@ export const hubTools = [
     description: 'Read who is authenticated and channel profile status.',
     inputSchema: { type: 'object', properties: {} },
     execute: () => adminGraphql(
-      `query StoreStatus { me { id identifier } merchantProfile { id nameCompany } supplierProfile { id nameCompany } }`,
+      `query StoreStatus { me { id identifier } merchantProfile { id nameCompany } }`,
     ),
   },
   {

@@ -8,6 +8,9 @@ import { pluginRoot } from './test/helpers.mjs';
 test('denies staff CRM and key minting field names', () => {
   assert.equal(deniedOp('crmAgentBriefing'), true);
   assert.equal(deniedOp('issueAgentAccessKey'), true);
+  assert.equal(deniedOp('assignSiteLoginKeys'), true);
+  assert.equal(deniedOp('listSiteLogins'), false);
+  assert.equal(deniedOp('unwrapSiteLogin'), false);
   assert.equal(deniedOp('rotateAgentAccessKey'), true);
   assert.equal(deniedOp('agentAccessUsage'), true);
   assert.equal(deniedOp('agentEligibleStores'), true);
@@ -41,6 +44,8 @@ test('denies staff CRM and key minting field names', () => {
   assert.equal(deniedOp('createStorePost'), false);
   assert.equal(deniedOp('createRuleBasedCollection'), false);
   assert.equal(deniedOp('setMerchantCollectionRule'), false);
+  assert.equal(deniedOp('duplicateCollectionToStore'), false);
+  assert.equal(deniedOp('duplicateSupplierCollection'), false);
   assert.equal(deniedOp('updateCollectionRule'), true);
   assert.equal(deniedOp('autoGenerateCollections'), true);
   assert.equal(deniedOp('updateStoreAutoSync'), true);

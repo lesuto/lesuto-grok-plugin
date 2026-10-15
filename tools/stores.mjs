@@ -15,15 +15,25 @@ const ACCOUNT_OVERVIEW_QUERY = `query AgentAccountOverview($period: String) {
   }
 }`;
 
+function normalizeStoreHint(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
 function matchStore(stores, hint) {
-  const h = String(hint || '').trim().toLowerCase();
+  const h = normalizeStoreHint(hint);
   if (!h) return null;
-  return stores.find((s) => (
-    String(s.alias || '').toLowerCase() === h
-    || String(s.channelCode || '').toLowerCase() === h
-    || String(s.channelToken || '').toLowerCase() === h
-    || String(s.channelName || '').toLowerCase() === h
-  )) || null;
+  const exact = stores.find((s) => (
+    normalizeStoreHint(s.alias) === h
+    || normalizeStoreHint(s.channelCode) === h
+    || normalizeStoreHint(s.channelToken) === h
+    || normalizeStoreHint(s.channelName) === h
+  ));
+  if (exact) return exact;
+  if (h.length < 3) return null;
+  return stores.find((s) => {
+    const name = normalizeStoreHint(s.channelName);
+    return name && (name.includes(h) || h.includes(name));
+  }) || null;
 }
 
 export const storeTools = [

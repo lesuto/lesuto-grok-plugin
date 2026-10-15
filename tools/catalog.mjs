@@ -12,7 +12,8 @@ Workflow:
 6. For a live supplier aisle: list_supplier_collections, then subscribe_to_supplier_collection for one named aisle. That is not dump-the-catalog.
 7. add_products_to_store and add_products_to_collection to put products on a manual aisle. Do not add products by hand to a smart or mirrored aisle.
 8. collection_banner_options then set_store_collection_details to rename, set SEO, or set a banner. Never call updateMerchantCollection.
-9. Do not call createProduct, updateProduct, createCollection, autoGenerateCollections, updateStoreAutoSync, mirrorChannelInventory, or deleteMerchantCollection.
+9. duplicate_collection_to_store copies an aisle onto another website. Products already on that website stay. duplicate_supplier_collection copies a supplier's own aisle. Requires confirm true.
+10. Do not call createProduct, updateProduct, createCollection, autoGenerateCollections, updateStoreAutoSync, mirrorChannelInventory, or deleteMerchantCollection.
 
 Credits: subscribe and store creates are writes. Confirm true is required on those tools.`;
 
@@ -415,6 +416,60 @@ export const catalogTools = [
           supplierCollectionId,
           autoSyncProducts: args.autoSyncProducts !== false,
         },
+        { allowWrite: true },
+      );
+    },
+  },
+  {
+    name: 'duplicate_collection_to_store',
+    description: 'Copy a collection onto another website. Products already in that store stay. Requires collectionId, targetStoreId, and confirm true.',
+    destructiveHint: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        collectionId: { type: 'string' },
+        targetStoreId: { type: 'string' },
+        confirm: { type: 'boolean' },
+      },
+      required: ['collectionId', 'targetStoreId'],
+    },
+    execute: (args) => {
+      requireConfirm(args, 'collection duplicate');
+      const collectionId = String(args.collectionId || '').trim();
+      const targetStoreId = String(args.targetStoreId || '').trim();
+      if (!collectionId || !targetStoreId) throw new Error('collectionId and targetStoreId are required');
+      return adminGraphql(
+        `mutation DuplicateCollectionToStore($collectionId: ID!, $targetStoreId: ID!) {
+          duplicateCollectionToStore(collectionId: $collectionId, targetStoreId: $targetStoreId) {
+            id name slug productCount storeId
+          }
+        }`,
+        { collectionId, targetStoreId },
+        { allowWrite: true },
+      );
+    },
+  },
+  {
+    name: 'duplicate_supplier_collection',
+    description: 'Copy a supplier aisle on this supplier channel. Requires collectionId and confirm true.',
+    destructiveHint: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        collectionId: { type: 'string' },
+        confirm: { type: 'boolean' },
+      },
+      required: ['collectionId'],
+    },
+    execute: (args) => {
+      requireConfirm(args, 'supplier collection duplicate');
+      const collectionId = String(args.collectionId || '').trim();
+      if (!collectionId) throw new Error('collectionId is required');
+      return adminGraphql(
+        `mutation DuplicateSupplierCollection($collectionId: ID!) {
+          duplicateSupplierCollection(collectionId: $collectionId) { id name slug productCount }
+        }`,
+        { collectionId },
         { allowWrite: true },
       );
     },

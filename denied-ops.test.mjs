@@ -44,6 +44,11 @@ test('denies staff CRM and key minting field names', () => {
   assert.equal(deniedOp('createStorePost'), false);
   assert.equal(deniedOp('createRuleBasedCollection'), false);
   assert.equal(deniedOp('setMerchantCollectionRule'), false);
+  assert.equal(deniedOp('setMerchantCollectionParent'), false);
+  assert.equal(deniedOp('removeMerchantCollection'), false);
+  assert.equal(deniedOp('toggleCollectionVisibility'), false);
+  assert.equal(deniedOp('unsubscribeFromSupplierCollection'), false);
+  assert.equal(deniedOp('deleteMerchantCollection'), true);
   assert.equal(deniedOp('duplicateCollectionToStore'), false);
   assert.equal(deniedOp('duplicateSupplierCollection'), false);
   assert.equal(deniedOp('updateCollectionRule'), true);

@@ -533,7 +533,7 @@ test('marketplace tools are registered and subscribe is confirm-gated channel_on
 });
 
 test('catalog tools stay on add/remove and never createProduct', async () => {
-  for (const name of ['catalog_operator_guide', 'suggest_catalog', 'create_store', 'create_store_collection', 'add_products_to_store', 'add_products_to_collection', 'collection_banner_options', 'set_store_collection_details', 'preview_smart_collection', 'create_smart_collection', 'update_smart_collection_rule', 'list_supplier_collections', 'subscribe_to_supplier_collection', 'duplicate_collection_to_store', 'duplicate_supplier_collection']) {
+  for (const name of ['catalog_operator_guide', 'suggest_catalog', 'create_store', 'create_store_collection', 'list_store_collections', 'get_store_collection', 'list_collection_products', 'add_products_to_store', 'add_products_to_collection', 'remove_products_from_collection', 'collection_banner_options', 'set_store_collection_details', 'set_store_collection_parent', 'set_store_collection_visibility', 'delete_store_collection', 'preview_smart_collection', 'create_smart_collection', 'update_smart_collection_rule', 'list_supplier_collections', 'subscribe_to_supplier_collection', 'list_supplier_collection_mirrors', 'unsubscribe_supplier_collection', 'duplicate_collection_to_store', 'duplicate_supplier_collection']) {
     assert.ok(TOOLS.some((t) => t.name === name), name);
   }
   assert.match(CATALOG_OPERATOR_GUIDE, /createProduct/);
@@ -545,6 +545,17 @@ test('catalog tools stay on add/remove and never createProduct', async () => {
   const createCollection = catalogTools.find((t) => t.name === 'create_store_collection');
   const src = String(createCollection.execute);
   assert.equal(src.includes('productIds'), false);
+  assert.match(src, /parentId/);
+  assert.match(createCollection.description, /parentId/);
+  assert.match(CATALOG_OPERATOR_GUIDE, /parentId/);
+  assert.match(CATALOG_OPERATOR_GUIDE, /Never reuse another merchant's collection ids/);
+  assert.match(CATALOG_OPERATOR_GUIDE, /delete_store_collection/);
+  assert.match(CATALOG_OPERATOR_GUIDE, /remove_products_from_collection/);
+  const deleteCollection = catalogTools.find((t) => t.name === 'delete_store_collection');
+  assert.match(String(deleteCollection.execute), /removeMerchantCollection/);
+  assert.equal(String(deleteCollection.execute).includes('deleteMerchantCollection'), false);
+  const nest = catalogTools.find((t) => t.name === 'set_store_collection_parent');
+  assert.match(String(nest.execute), /setMerchantCollectionParent/);
   const details = catalogTools.find((t) => t.name === 'set_store_collection_details');
   assert.equal(String(details.execute).includes('productIds'), false);
   assert.match(details.description, /Never sends productIds/);
@@ -554,15 +565,32 @@ test('catalog tools stay on add/remove and never createProduct', async () => {
   assert.match(String(smartRule.execute), /setMerchantCollectionRule/);
   assert.equal(String(smartRule.execute).includes('updateCollectionRule'), false);
   assert.equal(deniedOp('setMerchantCollectionDetails'), false);
+  assert.equal(deniedOp('setMerchantCollectionParent'), false);
   assert.equal(deniedOp('setMerchantCollectionRule'), false);
   assert.equal(deniedOp('createRuleBasedCollection'), false);
+  assert.equal(deniedOp('removeMerchantCollection'), false);
+  assert.equal(deniedOp('toggleCollectionVisibility'), false);
+  assert.equal(deniedOp('unsubscribeFromSupplierCollection'), false);
   assert.equal(deniedOp('updateCollectionRule'), true);
   assert.equal(deniedOp('updateMerchantCollection'), true);
+  assert.equal(deniedOp('deleteMerchantCollection'), true);
   assert.equal(deniedOp('autoGenerateCollections'), true);
   assert.equal(deniedOp('updateStoreAutoSync'), true);
   await withAgentEnv(async () => {
     await assert.rejects(
       () => Promise.resolve().then(() => catalogTools.find((t) => t.name === 'add_products_to_store').execute({ storeId: '1', productIds: ['2'] })),
+      /confirm: true/,
+    );
+    await assert.rejects(
+      () => Promise.resolve().then(() => catalogTools.find((t) => t.name === 'create_store_collection').execute({ name: 'Ranch', confirm: true })),
+      /storeId is required/,
+    );
+    await assert.rejects(
+      () => Promise.resolve().then(() => catalogTools.find((t) => t.name === 'delete_store_collection').execute({ collectionId: '12' })),
+      /confirm: true/,
+    );
+    await assert.rejects(
+      () => Promise.resolve().then(() => catalogTools.find((t) => t.name === 'remove_products_from_collection').execute({ collectionId: '12', productIds: ['9'] })),
       /confirm: true/,
     );
     await assert.rejects(

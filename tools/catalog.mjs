@@ -4,18 +4,21 @@ import { requireConfirm } from '../lib/denied-ops.mjs';
 export const CATALOG_OPERATOR_GUIDE = `You stock Lesuto stores through named Catalog tools. You do not create SKUs or change prices.
 
 Workflow:
-1. suggest_catalog to find home-plan suppliers and products already on the marketplace.
-2. create_store when they asked for a new store. Default platform is sdk. Use wordpress only when they named WordPress. Add a Hub store only when they asked for Hub.
-3. subscribe_to_supplier (confirm true). Then update routing with the new deployment when they named that store.
-4. create_store_collection for a hand-picked aisle. Name and description only. Optional featuredAssetId from the library. Never pass productIds.
-5. For a smart search aisle: preview_smart_collection, then create_smart_collection with a website plus at least one keyword, product type, supplier, or facet. It keeps filling from that website. update_smart_collection_rule to change the search.
-6. For a live supplier aisle: list_supplier_collections, then subscribe_to_supplier_collection for one named aisle. That is not dump-the-catalog.
-7. add_products_to_store and add_products_to_collection to put products on a manual aisle. Do not add products by hand to a smart or mirrored aisle.
-8. collection_banner_options then set_store_collection_details to rename, set SEO, or set a banner. Never call updateMerchantCollection.
-9. duplicate_collection_to_store copies an aisle onto another website. Products already on that website stay. duplicate_supplier_collection copies a supplier's own aisle. Requires confirm true.
-10. Do not call createProduct, updateProduct, createCollection, autoGenerateCollections, updateStoreAutoSync, mirrorChannelInventory, or deleteMerchantCollection.
+1. list_store_collections with storeId to see aisles on this website. get_store_collection and list_collection_products for one aisle. list_supplier_collection_mirrors for live supplier aisles.
+2. suggest_catalog to find home-plan suppliers and products already on the marketplace.
+3. create_store when they asked for a new store. Default platform is sdk. Use wordpress only when they named WordPress. Add a Hub store only when they asked for Hub.
+4. subscribe_to_supplier (confirm true). Then update routing with the new deployment when they named that store.
+5. create_store_collection for a hand-picked aisle on THIS store. Pass storeId. For a child aisle (Craftsman under Home Plans), pass parentId of that store's parent collection so the child is assigned to the same channel. Never reuse another merchant's collection ids. Never pass productIds.
+6. For a smart search aisle: preview_smart_collection, then create_smart_collection with a website plus at least one keyword, product type, supplier, or facet. It keeps filling from that website. update_smart_collection_rule to change the search.
+7. For a live supplier aisle: list_supplier_collections, then subscribe_to_supplier_collection for one named aisle. That is not dump-the-catalog. unsubscribe_supplier_collection to drop a mirror.
+8. add_products_to_store and add_products_to_collection to put products on a manual aisle. remove_products_from_collection to take products off. Do not add or remove products by hand on a smart or mirrored aisle.
+9. collection_banner_options then set_store_collection_details to rename, set SEO, or set a banner. set_store_collection_parent to nest or un-nest. set_store_collection_visibility to hide. delete_store_collection to remove an owned aisle. Never call updateMerchantCollection or deleteMerchantCollection.
+10. duplicate_collection_to_store copies an aisle onto another website. Products already on that website stay. duplicate_supplier_collection copies a supplier's own aisle. Requires confirm true.
+11. Do not call createProduct, updateProduct, createCollection, autoGenerateCollections, updateStoreAutoSync, or mirrorChannelInventory.
 
 Credits: subscribe and store creates are writes. Confirm true is required on those tools.`;
+
+const COLLECTION_FIELDS = `id name slug description isPrivate parentId productCount storeId storeName sourceType isRuleBased isEditable children { id name slug parentId productCount isPrivate }`;
 
 function ruleFromArgs(args) {
   const keyword = String(args.keyword || '').trim().slice(0, 120);
@@ -51,7 +54,7 @@ function slugify(value) {
 export const catalogTools = [
   {
     name: 'catalog_operator_guide',
-    description: 'How to create a store, subscribe a supplier, make collections, and add products. Catalog is subscribe plus add-to-store, not createProduct.',
+    description: 'How to create a store, subscribe a supplier, make and fully manage collections, and add products. Catalog is subscribe plus add-to-store, not createProduct.',
     inputSchema: { type: 'object', properties: {} },
     execute: async () => CATALOG_OPERATOR_GUIDE,
   },
@@ -128,7 +131,7 @@ export const catalogTools = [
   },
   {
     name: 'create_store_collection',
-    description: 'Create a merchant collection (aisle) on a store. Name and description only. Optional featuredAssetId from the library. Do not pass productIds. Requires confirm true.',
+    description: 'Create a merchant collection (aisle) on this store. storeId is required. Child aisles must pass parentId so they stay on this channel. Optional featuredAssetId from the library. Do not pass productIds. Requires confirm true.',
     destructiveHint: true,
     inputSchema: {
       type: 'object',
@@ -136,25 +139,109 @@ export const catalogTools = [
         name: { type: 'string' },
         description: { type: 'string' },
         storeId: { type: 'string' },
+        parentId: { type: 'string', description: 'Parent aisle id on this store. Required for child style collections.' },
         featuredAssetId: { type: 'string', description: 'Existing library image on this channel' },
         confirm: { type: 'boolean' },
       },
-      required: ['name'],
+      required: ['name', 'storeId'],
     },
     execute: (args) => {
       requireConfirm(args, 'collection create');
       const name = String(args.name || '').trim();
+      const storeId = String(args.storeId || '').trim();
       if (!name) throw new Error('name is required');
-      const input = { name };
+      if (!storeId) throw new Error('storeId is required');
+      const input = { name, storeId };
       if (args.description) input.description = String(args.description);
-      if (args.storeId) input.storeId = String(args.storeId);
+      if (args.parentId) input.parentId = String(args.parentId);
       if (args.featuredAssetId) input.featuredAssetId = String(args.featuredAssetId);
       return adminGraphql(
         `mutation CreateStoreCollection($input: CreateMerchantCollectionInput!) {
-          createMerchantCollection(input: $input) { id name slug }
+          createMerchantCollection(input: $input) { ${COLLECTION_FIELDS} }
         }`,
         { input },
         { allowWrite: true },
+      );
+    },
+  },
+  {
+    name: 'list_store_collections',
+    description: 'List owned and supplier aisles on this store. Pass storeId. Read only. Use these ids for parentId, membership, visibility, and delete.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        storeId: { type: 'string' },
+        term: { type: 'string' },
+        skip: { type: 'number' },
+        take: { type: 'number' },
+      },
+      required: ['storeId'],
+    },
+    execute: (args) => {
+      const storeId = String(args.storeId || '').trim();
+      if (!storeId) throw new Error('storeId is required');
+      const take = Math.min(Math.max(Number(args.take) || 50, 1), 100);
+      const skip = Math.max(Number(args.skip) || 0, 0);
+      const term = String(args.term || '').trim().slice(0, 120);
+      return adminGraphql(
+        `query ListStoreCollections($storeId: ID, $skip: Int, $take: Int, $term: String) {
+          merchantCollections(storeId: $storeId, skip: $skip, take: $take, term: $term) {
+            ownedTotal supplierTotal ownedProductTotal supplierProductTotal
+            ownedCollections { ${COLLECTION_FIELDS} }
+            supplierCollections { ${COLLECTION_FIELDS} }
+          }
+        }`,
+        { storeId, skip, take, term: term || null },
+      );
+    },
+  },
+  {
+    name: 'get_store_collection',
+    description: 'Read one aisle on this channel: name, parent, store, product count, children, and whether it is a smart or mirrored aisle. Read only.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        collectionId: { type: 'string' },
+      },
+      required: ['collectionId'],
+    },
+    execute: (args) => {
+      const collectionId = String(args.collectionId || '').trim();
+      if (!collectionId) throw new Error('collectionId is required');
+      return adminGraphql(
+        `query GetStoreCollection($collectionId: ID!) {
+          merchantCollection(collectionId: $collectionId) { ${COLLECTION_FIELDS} seoTitle seoDescription featuredAsset { id preview } }
+        }`,
+        { collectionId },
+      );
+    },
+  },
+  {
+    name: 'list_collection_products',
+    description: 'List products already in this aisle. Pass collectionId. Optional term to search inside the aisle. Read only.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        collectionId: { type: 'string' },
+        term: { type: 'string' },
+        skip: { type: 'number' },
+        take: { type: 'number' },
+      },
+      required: ['collectionId'],
+    },
+    execute: (args) => {
+      const collectionId = String(args.collectionId || '').trim();
+      if (!collectionId) throw new Error('collectionId is required');
+      const take = Math.min(Math.max(Number(args.take) || 20, 1), 50);
+      const skip = Math.max(Number(args.skip) || 0, 0);
+      const term = String(args.term || '').trim().slice(0, 120);
+      const input = { collectionId, take, skip, groupByProduct: true };
+      if (term) input.term = term;
+      return adminGraphql(
+        `query ListCollectionProducts($input: ChameleonSearchInput!) {
+          chameleonSearch(input: $input) { totalItems items { productId productName slug } }
+        }`,
+        { input },
       );
     },
   },
@@ -186,7 +273,7 @@ export const catalogTools = [
   },
   {
     name: 'add_products_to_collection',
-    description: 'Append products to a collection without replacing membership. Use this, not updateMerchantCollection productIds. Requires confirm true.',
+    description: 'Append products to a manual aisle without replacing membership. Use this, not updateMerchantCollection productIds. Requires confirm true.',
     destructiveHint: true,
     inputSchema: {
       type: 'object',
@@ -204,6 +291,32 @@ export const catalogTools = [
       return adminGraphql(
         `mutation AddProductsToCollection($productIds: [ID!]!, $collectionId: ID!) {
           addProductsToCollection(productIds: $productIds, collectionId: $collectionId)
+        }`,
+        { productIds, collectionId: String(args.collectionId) },
+        { allowWrite: true },
+      );
+    },
+  },
+  {
+    name: 'remove_products_from_collection',
+    description: 'Remove products from a manual aisle without replacing membership. Do not use on a smart or mirrored aisle. Requires confirm true.',
+    destructiveHint: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        collectionId: { type: 'string' },
+        productIds: { type: 'array', items: { type: 'string' } },
+        confirm: { type: 'boolean' },
+      },
+      required: ['collectionId', 'productIds'],
+    },
+    execute: (args) => {
+      requireConfirm(args, 'remove products from collection');
+      const productIds = Array.isArray(args.productIds) ? args.productIds.map(String) : [];
+      if (!productIds.length) throw new Error('productIds is required');
+      return adminGraphql(
+        `mutation RemoveProductsFromCollection($productIds: [ID!]!, $collectionId: ID!) {
+          removeProductsFromCollection(productIds: $productIds, collectionId: $collectionId)
         }`,
         { productIds, collectionId: String(args.collectionId) },
         { allowWrite: true },
@@ -264,6 +377,84 @@ export const catalogTools = [
           setMerchantCollectionDetails(input: $input) { id name slug featuredAsset { id preview } }
         }`,
         { input },
+        { allowWrite: true },
+      );
+    },
+  },
+  {
+    name: 'set_store_collection_parent',
+    description: 'Nest an owned aisle under another aisle on this store, or omit parentId to move it to the top. Requires confirm true. Never reuse another merchant\'s collection ids.',
+    destructiveHint: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        collectionId: { type: 'string' },
+        parentId: { type: 'string', description: 'Parent aisle id on this store. Omit or empty to un-nest.' },
+        confirm: { type: 'boolean' },
+      },
+      required: ['collectionId'],
+    },
+    execute: (args) => {
+      requireConfirm(args, 'collection parent');
+      const collectionId = String(args.collectionId || '').trim();
+      if (!collectionId) throw new Error('collectionId is required');
+      const parentRaw = args.parentId != null ? String(args.parentId).trim() : '';
+      return adminGraphql(
+        `mutation SetStoreCollectionParent($collectionId: ID!, $parentId: ID) {
+          setMerchantCollectionParent(collectionId: $collectionId, parentId: $parentId) { ${COLLECTION_FIELDS} }
+        }`,
+        { collectionId, parentId: parentRaw || null },
+        { allowWrite: true },
+      );
+    },
+  },
+  {
+    name: 'set_store_collection_visibility',
+    description: 'Hide or show an owned aisle. isPrivate true hides it from the storefront. Requires confirm true.',
+    destructiveHint: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        collectionId: { type: 'string' },
+        isPrivate: { type: 'boolean' },
+        confirm: { type: 'boolean' },
+      },
+      required: ['collectionId', 'isPrivate'],
+    },
+    execute: (args) => {
+      requireConfirm(args, 'collection visibility');
+      const collectionId = String(args.collectionId || '').trim();
+      if (!collectionId) throw new Error('collectionId is required');
+      return adminGraphql(
+        `mutation SetStoreCollectionVisibility($collectionId: ID!, $isPrivate: Boolean!) {
+          toggleCollectionVisibility(collectionId: $collectionId, isPrivate: $isPrivate) { ${COLLECTION_FIELDS} }
+        }`,
+        { collectionId, isPrivate: args.isPrivate === true },
+        { allowWrite: true },
+      );
+    },
+  },
+  {
+    name: 'delete_store_collection',
+    description: 'Delete an owned aisle on this store. Does not delete products. Requires confirm true. Never call deleteMerchantCollection.',
+    destructiveHint: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        collectionId: { type: 'string' },
+        confirm: { type: 'boolean' },
+      },
+      required: ['collectionId'],
+    },
+    execute: (args) => {
+      requireConfirm(args, 'collection delete');
+      const collectionId = String(args.collectionId || '').trim();
+      if (!collectionId) throw new Error('collectionId is required');
+      return adminGraphql(
+        `mutation RemoveStoreCollection($collectionId: ID!) {
+          removeMerchantCollection(collectionId: $collectionId)
+        }`,
+        { collectionId },
         { allowWrite: true },
       );
     },
@@ -416,6 +607,44 @@ export const catalogTools = [
           supplierCollectionId,
           autoSyncProducts: args.autoSyncProducts !== false,
         },
+        { allowWrite: true },
+      );
+    },
+  },
+  {
+    name: 'list_supplier_collection_mirrors',
+    description: 'List live supplier aisle mirrors on this channel. Read only. Use mirror id with unsubscribe_supplier_collection.',
+    inputSchema: { type: 'object', properties: {} },
+    execute: () => adminGraphql(
+      `query ListSupplierCollectionMirrors {
+        mySupplierCollectionMirrors {
+          id status autoSyncProducts supplierChannelId sourceCollectionId
+          mirrorCollection { ${COLLECTION_FIELDS} }
+        }
+      }`,
+    ),
+  },
+  {
+    name: 'unsubscribe_supplier_collection',
+    description: 'Drop a live supplier aisle mirror. Requires mirrorId from list_supplier_collection_mirrors and confirm true.',
+    destructiveHint: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mirrorId: { type: 'string' },
+        confirm: { type: 'boolean' },
+      },
+      required: ['mirrorId'],
+    },
+    execute: (args) => {
+      requireConfirm(args, 'unsubscribe supplier collection');
+      const mirrorId = String(args.mirrorId || '').trim();
+      if (!mirrorId) throw new Error('mirrorId is required');
+      return adminGraphql(
+        `mutation UnsubscribeSupplierCollection($mirrorId: ID!) {
+          unsubscribeFromSupplierCollection(mirrorId: $mirrorId)
+        }`,
+        { mirrorId },
         { allowWrite: true },
       );
     },

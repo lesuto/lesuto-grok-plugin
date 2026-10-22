@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Lesuto merchant Grok MCP (stdio JSON-RPC).
- * Auth: LESUTO_AGENT_KEY. Optional LESUTO_CHANNEL_TOKEN as a default store. Always api.lesuto.com.
+ * Auth: LESUTO_AGENT_KEY_GROK, else LESUTO_AGENT_KEY. Optional LESUTO_CHANNEL_TOKEN as a default store. Always api.lesuto.com.
  */
 import { createInterface } from 'node:readline';
 import { stdin, stdout, stderr } from 'node:process';
@@ -17,6 +17,7 @@ import { blogTools } from './tools/blog.mjs';
 import { storeTools } from './tools/stores.mjs';
 import { orgTools } from './tools/org.mjs';
 import { socialTools } from './tools/social.mjs';
+import { socialReviewTools } from './tools/social-review.mjs';
 import { studioTools } from './tools/studio.mjs';
 import { studioExtraTools } from './tools/studio-extra.mjs';
 
@@ -46,6 +47,7 @@ const TOOLS = [
   ...storeTools,
   ...orgTools,
   ...socialTools,
+  ...socialReviewTools,
   ...studioTools,
   ...studioExtraTools,
 ];

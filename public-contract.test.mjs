@@ -42,6 +42,7 @@ test('MCP manifest interpolates secrets and pins the API', () => {
   assert.equal(lesuto.command, 'node');
   assert.deepEqual(lesuto.args, ['${GROK_PLUGIN_ROOT}/server.mjs']);
   assert.equal(lesuto.env.LESUTO_API_URL, 'https://api.lesuto.com');
+  assert.equal(lesuto.env.LESUTO_AGENT_KEY_GROK, '${LESUTO_AGENT_KEY_GROK}');
   assert.equal(lesuto.env.LESUTO_AGENT_KEY, '${LESUTO_AGENT_KEY}');
   assert.equal(lesuto.env.LESUTO_CHANNEL_TOKEN, '${LESUTO_CHANNEL_TOKEN}');
 });

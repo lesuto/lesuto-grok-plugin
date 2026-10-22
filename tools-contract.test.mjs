@@ -29,7 +29,7 @@ test('org and store rollup tools skip the channel token', () => {
 });
 
 test('tool GraphQL operations are not on the merchant denylist', () => {
-  for (const rel of ['tools/connect.mjs', 'tools/commerce.mjs', 'tools/hub.mjs', 'tools/blog.mjs', 'tools/stores.mjs', 'tools/org.mjs', 'tools/social.mjs', 'tools/studio.mjs', 'tools/studio-extra.mjs', 'tools/marketplace.mjs', 'tools/catalog.mjs', 'tools/sites.mjs']) {
+  for (const rel of ['tools/connect.mjs', 'tools/commerce.mjs', 'tools/hub.mjs', 'tools/blog.mjs', 'tools/stores.mjs', 'tools/org.mjs', 'tools/social.mjs', 'tools/social-review.mjs', 'tools/studio.mjs', 'tools/studio-extra.mjs', 'tools/marketplace.mjs', 'tools/catalog.mjs', 'tools/sites.mjs']) {
     const src = readFileSync(join(pluginRoot, rel), 'utf8');
     const blocks = [...src.matchAll(/`((?:query|mutation)[\s\S]*?)`/g)].map((m) => m[1]);
     assert.ok(blocks.length > 0, rel);
@@ -286,7 +286,7 @@ test('social_generate_video passes Veo native audio on Cinema', async () => {
       }
       assert.equal(body.variables.input.includeAudio, true);
       assert.equal(body.variables.input.engine, 'cinema');
-      assert.equal(body.variables.input.termsAcknowledged, true);
+      assert.equal('termsAcknowledged' in body.variables.input, false, 'an agent never sends a license acceptance');
       return jsonResponse(200, { data: { aiGenerateVideoJob: { jobId: 'v1', estimatedMs: 1 } } });
     }, async () => {
       const quoted = await tool.execute({ prompt: 'teak chair in rain', includeAudio: true });
@@ -314,7 +314,7 @@ test('studio_produce_video snaps duration and can pass a hub store', async () =>
       assert.equal(body.variables.input.durationSeconds, 30);
       assert.equal(body.variables.input.storeId, 12);
       assert.equal(body.variables.input.includeAudio, false);
-      assert.equal(body.variables.input.termsAcknowledged, true);
+      assert.equal('termsAcknowledged' in body.variables.input, false, 'an agent never sends a license acceptance');
       return jsonResponse(200, { data: { aiProduceStudioVideoJob: { jobId: '1', estimatedMs: 1 } } });
     }, async () => {
       await tool.execute({ prompt: 'teak chair', durationSeconds: 25, storeId: 12, confirm: true });
@@ -619,4 +619,38 @@ test('sites unwrap never documents printing the secret', () => {
   assert.equal(deniedOp('createMerchantCollection'), false);
   assert.equal(deniedOp('duplicateCollectionToStore'), false);
   assert.equal(deniedOp('duplicateSupplierCollection'), false);
+});
+
+test('review-queue revise quotes credits first and approval tools validate input', async () => {
+  const { socialReviewTools, reviseQuote } = await import('./tools/social-review.mjs');
+  const revise = socialReviewTools.find((t) => t.name === 'social_post_revise');
+  const setApproval = socialReviewTools.find((t) => t.name === 'social_approval_mode_set');
+  const pricing = { captionRevise: 30, imageEdit: 12, videoScene: 162, timelineStitch: 40 };
+  assert.equal(reviseQuote('caption', pricing).credits, 30);
+  assert.equal(reviseQuote('video', pricing).credits, 202);
+  assert.equal(reviseQuote('auto', pricing, ['IMAGE']).credits, 12);
+  await withAgentEnv(async () => {
+    const sent = [];
+    await withMockFetch((_url, init) => {
+      const body = JSON.parse(init.body);
+      sent.push(body);
+      if (/RevisePricing/.test(body.query)) {
+        return jsonResponse(200, { data: { socialPostRevisePricing: { ...pricing, canSpend: true, balance: 500 }, socialAutomationPost: { id: '7', status: 'draft_review', mediaItems: [{ type: 'IMAGE' }] } } });
+      }
+      return jsonResponse(200, { data: { reviseSocialPost: { id: '3', status: 'proposed' } } });
+    }, async () => {
+      const quote = await revise.execute({ postId: '7', instruction: 'make the house blue', target: 'image' });
+      assert.equal(quote.needsConfirm, true);
+      assert.equal(quote.credits, 12);
+      assert.equal(sent.some((b) => /reviseSocialPost/.test(b.query)), false);
+      const done = await revise.execute({ postId: '7', instruction: 'make the house blue', target: 'image', confirm: true });
+      assert.equal(done.revision.status, 'proposed');
+      const mutation = sent.find((b) => /reviseSocialPost/.test(b.query));
+      assert.equal(mutation.variables.input.target, 'image');
+      assert.equal(mutation.variables.input.instruction, 'make the house blue');
+    });
+  });
+  assert.throws(() => setApproval.execute({ scope: 'store', id: '1', mode: 'auto' }), /scope must be/);
+  assert.throws(() => setApproval.execute({ scope: 'growth_line', id: '1', mode: 'yolo' }), /mode must be/);
+  await assert.rejects(() => revise.execute({ postId: '7', instruction: 'x', target: 'audio' }), /target must be/);
 });

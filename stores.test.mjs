@@ -91,7 +91,7 @@ test('account_overview rolls up without a sticky store', async () => {
 test('use_store accepts channel code and rejects unknown stores', async () => {
   resetStickyStore();
   const use = TOOLS.find((t) => t.name === 'use_store');
-  await withEnv({ LESUTO_AGENT_KEY: 'lsk_test_secretvalue', LESUTO_CHANNEL_TOKEN: undefined }, async () => {
+  await withEnv({ LESUTO_AGENT_KEY_GROK: undefined, LESUTO_AGENT_KEY: 'lsk_test_secretvalue', LESUTO_CHANNEL_TOKEN: undefined }, async () => {
     await withMockFetch(() => jsonResponse(200, { data: { accessibleStores: STORES } }), async () => {
       const switched = await use.execute({ store: 'merchant_north' });
       assert.equal(switched.active, 'L1');

@@ -5,6 +5,7 @@
       "args": ["${GROK_PLUGIN_ROOT}/server.mjs"],
       "env": {
         "LESUTO_API_URL": "https://api.lesuto.com",
+        "LESUTO_AGENT_KEY_GROK": "${LESUTO_AGENT_KEY_GROK}",
         "LESUTO_AGENT_KEY": "${LESUTO_AGENT_KEY}",
         "LESUTO_CHANNEL_TOKEN": "${LESUTO_CHANNEL_TOKEN}"
       }

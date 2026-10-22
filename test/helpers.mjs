@@ -58,6 +58,7 @@ export function withEnv(map, fn) {
 export function withAgentEnv(fn) {
   return withEnv({
     LESUTO_API_URL: undefined,
+    LESUTO_AGENT_KEY_GROK: undefined,
     LESUTO_AGENT_KEY: 'lsk_test_secretvalue',
     LESUTO_CHANNEL_TOKEN: 'merchant_demo_admin',
   }, fn);

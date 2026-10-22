@@ -8,7 +8,7 @@ Workflow:
 1. list_site_logins for host, loginUrl, and username only. You only see logins tagged to this key. Secrets never appear here.
 2. Open loginUrl in the browser. That is the page where this username and password are typed. WordPress is usually /wp-admin. Webflow and Squarespace logins are often on their own site, not the storefront. If loginUrl is missing, find the login form on host first.
 3. suggest_site_install with the live URL. WordPress: plugin plus Site Key from list_deployments. Any other host: Commerce SDK snippet. Unknown provider: say so and offer SDK. No Shopify or Wix app.
-4. unwrap_site_login with confirm true only when you are on that login page. Type the secret there. Do not print it in chat. Do not log it. One-shot. Max 5 unwraps per hour.
+4. unwrap_site_login with confirm true only when you are on that login page. Type the secret there. Do not print it in chat. Do not log it. If you lose the page, call unwrap_site_login again: any key tagged to this login can unwrap it again for 12 hours after the first unwrap, then the owner must rotate it. Max 5 successful unwraps per key per hour.
 5. Operator Chrome seat is a separate locked administrator. Never log into Command Center as the merchant. Never call adminLogin.
 
 Site Key stays on Deployments. The vault is the foreign host login only.`;
@@ -58,7 +58,7 @@ export const sitesTools = [
   },
   {
     name: 'unwrap_site_login',
-    description: 'One-shot unwrap of a bot host login for the login page only. Do not print the secret in chat. Requires confirm true.',
+    description: 'Unwrap a bot host login for the login page only. Repeatable by a tagged key for 12 hours after the first unwrap, then the owner must rotate. Do not print the secret in chat. Requires confirm true.',
     destructiveHint: true,
     inputSchema: {
       type: 'object',

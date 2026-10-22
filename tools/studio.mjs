@@ -134,11 +134,11 @@ const RAW_STUDIO_TOOLS = [
   },
   {
     name: 'studio_brief_lock',
-    description: 'Lock a brief after the merchant accepts the AI Generated Media License (version 2.0). Auto aspect resolves here.',
-    inputSchema: { type: 'object', properties: { briefId: { type: 'string' }, rightsAckVersion: { type: 'string' } }, required: ['briefId'] },
+    description: 'Lock a brief. The store must have accepted the AI Generated Media License (ai_media_license_status). You cannot accept it for them, so no version is sent. Auto aspect resolves here.',
+    inputSchema: { type: 'object', properties: { briefId: { type: 'string' } }, required: ['briefId'] },
     execute: (args) => gql(
-      `mutation LockBrief($briefId: ID!, $rightsAckVersion: String) { lockCreativeBrief(briefId: $briefId, rightsAckVersion: $rightsAckVersion) { ${BRIEF_FIELDS} } }`,
-      { briefId: String(args.briefId), rightsAckVersion: args.rightsAckVersion || '2.0' },
+      `mutation LockBrief($briefId: ID!) { lockCreativeBrief(briefId: $briefId) { ${BRIEF_FIELDS} } }`,
+      { briefId: String(args.briefId) },
       true,
     ),
   },
@@ -479,6 +479,54 @@ const RAW_STUDIO_TOOLS = [
     ),
   },
   {
+    name: 'studio_tutorial_plan',
+    description: 'Free. Plan a how-to tutorial for a brief with category how_to: grounding in the real product data, scene plan, and credit estimate. format comes back as features_walkthrough when the product has no step-by-step data; missing lists what to add. Never invent steps.',
+    inputSchema: {
+      type: 'object',
+      properties: { answers: { type: 'object' }, engine: { type: 'string' } },
+      required: ['answers'],
+    },
+    execute: (args) => gql(
+      `query TutorialPlan($answers: JSON!, $engine: String) { creativeTutorialPlan(answers: $answers, engine: $engine) { productName format stepCount notice missing factCount engine credits { script stills stillCount clips clipUnits stitch total } scenes { kind stepNumber shot shotsInStep plannedSeconds clipSeconds } } }`,
+      { answers: args.answers || {}, engine: args.engine || null },
+      true,
+    ),
+  },
+  {
+    name: 'studio_tutorial_render',
+    description: 'Charges credits. Queue step stills (when missing) and one background clip per scene for a tutorial script; the stitch follows on its own. Quote studio_tutorial_plan credits to the merchant first. Poll studio_tutorial_status.',
+    inputSchema: {
+      type: 'object',
+      properties: { scriptId: { type: 'string' }, engine: { type: 'string' }, quality: { type: 'string' }, force: { type: 'boolean' } },
+      required: ['scriptId'],
+    },
+    execute: (args) => gql(
+      `mutation TutorialRender($scriptId: ID!, $engine: String, $quality: String, $force: Boolean) { startCreativeTutorialRender(scriptId: $scriptId, engine: $engine, quality: $quality, force: $force) { jobId estimatedMs } }`,
+      { scriptId: String(args.scriptId), engine: args.engine || null, quality: args.quality || null, force: args.force === true },
+      true,
+    ),
+  },
+  {
+    name: 'studio_tutorial_status',
+    description: 'Read only. Clip and stitch progress for a tutorial script, failed scenes, and outputUrl when completed.',
+    inputSchema: { type: 'object', properties: { scriptId: { type: 'string' } }, required: ['scriptId'] },
+    execute: (args) => gql(
+      `query TutorialStatus($scriptId: ID!) { creativeTutorialRender(scriptId: $scriptId) { scriptId status totalScenes renderedScenes renderingScenes failedScenes { sceneId label errorMessage } exportId outputUrl errorMessage narration { available reason } } }`,
+      { scriptId: String(args.scriptId) },
+      true,
+    ),
+  },
+  {
+    name: 'studio_tutorial_stitch',
+    description: 'Queue the stitch for a tutorial whose clips are all rendered, or retry after stitch_failed. Charges the standard stitch.',
+    inputSchema: { type: 'object', properties: { scriptId: { type: 'string' } }, required: ['scriptId'] },
+    execute: (args) => gql(
+      `mutation TutorialStitch($scriptId: ID!) { stitchCreativeTutorial(scriptId: $scriptId) { scriptId status exportId outputUrl errorMessage } }`,
+      { scriptId: String(args.scriptId) },
+      true,
+    ),
+  },
+  {
     name: 'studio_render_storyboard',
     description: 'Cheap slideshow MP4 of keyframes for approval before motion.',
     inputSchema: { type: 'object', properties: { scriptId: { type: 'string' } }, required: ['scriptId'] },
@@ -574,7 +622,7 @@ const RAW_STUDIO_TOOLS = [
     },
     execute: async (args) => {
       const data = await gql(
-        `mutation ProposeLooks($id: ID!, $visualStyle: String, $shotType: String, $force: Boolean) { proposeCreativeCharacterLooks(id: $id, visualStyle: $visualStyle, shotType: $shotType, force: $force, termsAcknowledged: true) { ${LOOK_PROPOSAL_FIELDS} } }`,
+        `mutation ProposeLooks($id: ID!, $visualStyle: String, $shotType: String, $force: Boolean) { proposeCreativeCharacterLooks(id: $id, visualStyle: $visualStyle, shotType: $shotType, force: $force) { ${LOOK_PROPOSAL_FIELDS} } }`,
         { id: String(args.id), visualStyle: args.visualStyle || null, shotType: args.shotType || null, force: args.force === true },
         true,
       );
@@ -601,7 +649,7 @@ const RAW_STUDIO_TOOLS = [
     inputSchema: { type: 'object', properties: { id: { type: 'string' }, visualStyle: { type: 'string' } }, required: ['id'] },
     execute: async (args) => {
       await gql(
-        `mutation LookPackage($id: ID!, $visualStyle: String) { completeCreativeCharacterLookPackage(id: $id, termsAcknowledged: true, visualStyle: $visualStyle) { ${CHARACTER_FIELDS} } }`,
+        `mutation LookPackage($id: ID!, $visualStyle: String) { completeCreativeCharacterLookPackage(id: $id, visualStyle: $visualStyle) { ${CHARACTER_FIELDS} } }`,
         { id: String(args.id), visualStyle: args.visualStyle || null },
         true,
       );

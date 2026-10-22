@@ -143,7 +143,7 @@ const RAW_STUDIO_EXTRA_TOOLS = [
     description: 'Legacy one-shot look lock. Prefer studio_character_looks_propose then commit.',
     inputSchema: { type: 'object', properties: { id: { type: 'string' }, visualStyle: { type: 'string' } }, required: ['id'] },
     execute: (args) => gql(
-      `mutation LegacyLook($id: ID!, $visualStyle: String) { generateCreativeCharacterLook(id: $id, termsAcknowledged: true, visualStyle: $visualStyle) { ${CHARACTER_FIELDS} } }`,
+      `mutation LegacyLook($id: ID!, $visualStyle: String) { generateCreativeCharacterLook(id: $id, visualStyle: $visualStyle) { ${CHARACTER_FIELDS} } }`,
       { id: String(args.id), visualStyle: args.visualStyle || null },
       true,
     ),

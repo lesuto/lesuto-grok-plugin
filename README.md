@@ -117,8 +117,10 @@ Put these in Grok plugin / MCP secrets. Do not paste the key into a Grok convers
 
 ```
 LESUTO_API_URL=https://api.lesuto.com
-LESUTO_AGENT_KEY=lsk_live_…
+LESUTO_AGENT_KEY_GROK=lsk_live_…
 ```
+
+The plugin reads `LESUTO_AGENT_KEY_GROK` first, then `LESUTO_AGENT_KEY`, so a Grok-only key works on its own. If Lesuto rejects the key, the error names which variable was sent, the last 4 characters of that key, the HTTP status and code, and the permission the server reported for a 403.
 
 `LESUTO_API_URL` is optional. When set, it must be `https://api.lesuto.com` (or `https://staging-api.lesuto.com` for Lesuto staging).
 
@@ -159,7 +161,7 @@ The key is the product. Grok's MCP plugin is the featured wrapper. Cursor, Claud
       "args": ["/absolute/path/to/lesuto-grok-plugin/server.mjs"],
       "env": {
         "LESUTO_API_URL": "https://api.lesuto.com",
-        "LESUTO_AGENT_KEY": "lsk_live_YOUR_KEY",
+        "LESUTO_AGENT_KEY_GROK": "lsk_live_YOUR_KEY",
         "LESUTO_CHANNEL_TOKEN": "YOUR_CHANNEL_TOKEN"
       }
     }

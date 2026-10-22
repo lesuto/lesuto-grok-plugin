@@ -31,6 +31,8 @@ export const SOCIAL_OPERATOR_GUIDE = `You operate Lesuto Social Studio as this m
 
 Named tools (use these; lesuto_graphql is read-only and refuses Scenes and writes): studio_operator_guide, studio_still_modes, studio_stores, studio_scenes, studio_scene_update, studio_scenes_build, studio_scenes_reorder, studio_catalog_angles, studio_assets, studio_shot_presets, studio_music_search, studio_keyframes, studio_keyframe_regenerate, studio_job_status, studio_render_scenes, studio_stitch_from_script, studio_render_timeline, studio_export_status, studio_reconstruct_3d, studio_produce_video. Changing stillMode on studio_scene_update clears start and end stills; generate them again. Assign library stills with startAssetId/endAssetId and clips with clipAssetId. quality=hero is 450 credits; engine=cinema is 350. Stitch cinema/hero bills premium (80). studio_render_scenes includeAudio adds native ambience.
 
+AI Generated Media License: you cannot accept it, and nothing you send counts as acceptance. Before any AI image, video, look, keyframe, or brief lock, call ai_media_license_status for the active store. If accepted is false, stop and tell the merchant in plain words: this store's owner must accept the AI Generated Media License once for this store, open acceptUrl, click "Review and Accept" on the store row, read it, tick the box, and click "I Accept for This Store". If canAccept is true, the person who issued your key is an owner and can do it themselves. If canAccept is false, they must send acceptUrl to a Merchant Owner or Supplier Owner of that store. Each store is accepted separately; check again after use_store. If a call fails with AI_MEDIA_LICENSE_REQUIRED, relay that message (it has the link) instead of retrying.
+
 Workflow:
 1. Read brand voice, connections, and growth lines.
 2. Draft a growth line with social_growth_line_draft if none exists, then save after the merchant would review it.
@@ -39,7 +41,7 @@ Workflow:
 5. Each scene has stillMode. Call studio_still_modes if you need the contract. listing_orbit (listing photos): paste studio_catalog_angles as start and end frames. lifestyle (talent restage / product reference): generate people, wardrobe, action, and lighting from the scene text; listing photos are SKU reference only. establishing (no product): villa driveway, sky, B-roll, no SKU in frame. end_card: overlay copy. Aliases on studio_scene_update: talent_restage, product_reference, no_product. Set stillMode before keyframes. Changing stillMode clears stills. Always use studio_keyframes or studio_keyframe_regenerate so you get a jobId; poll studio_job_status. Never call generateCreativeKeyframes (no job, silent skips). If which=end does nothing, read the error. Read errorMessage if status is failed. Do not put the SKU title in a motion prompt. On-screen copy is only the headline and CTA the merchant wrote. Burn that on at stitch (overlays on). Do not ask the motion model to paint letters. Swap beats with studio_scenes_reorder (every scene id once) or studio_stitch_from_script sceneIds.
 6. For keyframe jobs, outputUrl is the PNG still for that scene and slot, totalCreditsUsed is the charge, and steps.assetId is the written still. For video jobs, outputUrl must be an MP4. A URL ending in .mp4.png is a broken document-icon poster, not the clip. Do not show a poster as the video and do not put it in mediaItems. Wait for stitch outputUrl or the asset source MP4.
 7. studio_reconstruct_3d is an optional GLB mesh (150 credits standard TRELLIS, 350 premium Hunyuan). Listing photos are enough for an accurate SKU clip. Do not run 3D unless they asked for a 3D object. 3D is not USDZ and is not fed into Luma.
-8. Stop after stills and after the MP4 so the merchant can approve. Schedule posts with social_post_schedule and mediaItems (the MP4 URL) at an exact ISO scheduledAt. They land in the review queue. Resolve with studio_review_resolve.
+8. Stop after stills and after the MP4 so the merchant can approve. Schedule posts with social_post_schedule and mediaItems (the MP4 URL) at an exact ISO scheduledAt. They land in the review queue. Resolve with studio_review_resolve. When the merchant wants a change to a queued post ("I like this but the house is red, make it blue"), use social_post_revise with their words, show before and after, then social_post_revision_accept or keep chatting. The real product in an image stays identical. A video change re-renders one scene; poll social_post_revision_status. Approval is the merchant's setting: social_approval_mode_get, and social_approval_mode_set only when they ask (review = approve each post, auto = post automatically, inherit = follow the Growth Line).
 9. After Social Studio publishes, call social_posts with status posted and show publishedUrl. That is the Instagram, TikTok, YouTube, or other network permalink. Drafts and review items have none until they post. social_connections lists this merchant's connected accounts (platform plus accountName). It is not a Hub shopper list. Never invent a customer directory.
 10. Hub posts are a different job (hub_create_post / hub_posts). After a Hub post, show hubPermalink. That is the public Hub URL to share.
 11. Never work around a safety block, never turn the kill switch off, never buy credits, never connect OAuth accounts. Never call ElevenLabs directly. Voices go through studio_voices_search and studio_character_lock_voice.
@@ -271,8 +273,16 @@ const RAW_SOCIAL_TOOLS = [
     ),
   },
   {
+    name: 'ai_media_license_status',
+    description: 'Whether the active store has accepted the AI Generated Media License, the exact admin link where an owner accepts it, and whether the person who issued this key can accept it. Call before any AI generation. You cannot accept it.',
+    inputSchema: { type: 'object', properties: {} },
+    execute: () => adminGraphql(
+      `query AiMediaLicenseStatus { activeStoreAgreementStatus(agreementCode: "ai-generated-media-license") { channelCode entityName accepted currentVersion acceptedVersion acceptedAt canAccept acceptUrl } }`,
+    ),
+  },
+  {
     name: 'social_generate_image',
-    description: 'Generate a still for Social Studio. Charges AI credits. Requires a Social or All jobs key.',
+    description: 'Generate a still for Social Studio. Charges AI credits. Requires a Social or All jobs key. The store must have accepted the AI Generated Media License: check ai_media_license_status first.',
     inputSchema: {
       type: 'object',
       properties: { prompt: { type: 'string' }, productId: { type: 'string' } },
@@ -311,7 +321,6 @@ const RAW_SOCIAL_TOOLS = [
             aspectRatio: args.aspectRatio || '9:16',
             includeAudio,
             imageAssetId: args.imageAssetId || null,
-            termsAcknowledged: args.confirm === true || args.termsAcknowledged === true,
           },
         },
         { allowWrite: true },
@@ -342,7 +351,6 @@ const RAW_SOCIAL_TOOLS = [
         engine: { type: 'string' },
         quality: { type: 'string' },
         imageAssetIds: { type: 'array', items: { type: 'string' } },
-        termsAcknowledged: { type: 'boolean' },
       },
       required: ['prompt'],
     },
@@ -360,7 +368,6 @@ const RAW_SOCIAL_TOOLS = [
           engine: args.engine || null,
           quality: args.quality || null,
           imageAssetIds: args.imageAssetIds || null,
-          termsAcknowledged: args.confirm === true || args.termsAcknowledged === true,
         },
       },
       { allowWrite: true },

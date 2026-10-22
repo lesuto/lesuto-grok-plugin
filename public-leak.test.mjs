@@ -91,11 +91,15 @@ test('merchant-facing copy has no internal jargon or private hosts', () => {
 test('MCP secrets stay interpolated; runtime reads env only', () => {
   const mcp = JSON.parse(readFileSync(join(pluginRoot, '.mcp.json'), 'utf8'));
   const env = mcp.mcpServers.lesuto.env;
+  assert.equal(env.LESUTO_AGENT_KEY_GROK, '${LESUTO_AGENT_KEY_GROK}');
   assert.equal(env.LESUTO_AGENT_KEY, '${LESUTO_AGENT_KEY}');
   assert.equal(env.LESUTO_CHANNEL_TOKEN, '${LESUTO_CHANNEL_TOKEN}');
   assert.match(env.LESUTO_API_URL, /^https:\/\/(staging-)?api\.lesuto\.com$/);
   const graphql = readFileSync(join(pluginRoot, 'lib/graphql.mjs'), 'utf8');
-  assert.match(graphql, /process\.env\.LESUTO_AGENT_KEY/);
+  assert.match(graphql, /resolveAgentKey/);
+  const agentKey = readFileSync(join(pluginRoot, 'lib/agent-key.mjs'), 'utf8');
+  assert.match(agentKey, /LESUTO_AGENT_KEY_GROK/);
+  assert.equal(findCredentialLeaks(agentKey).length, 0);
   assert.equal(findCredentialLeaks(graphql).length, 0);
   assert.doesNotMatch(graphql, /lsk_live_[A-Za-z0-9]{16,}/);
 });

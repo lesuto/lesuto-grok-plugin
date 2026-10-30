@@ -22,6 +22,7 @@ const EXPECTED_TOOLS = [
   ...studioTools.map((t) => t.name),
   ...studioExtraTools.map((t) => t.name),
   'social_growth_line_archive', 'social_growth_line_research', 'social_post_update', 'social_post_cancel',
+  'social_post_retry', 'social_post_mark_posted',
   'blog_cadence_status', 'social_kill_switch_on', 'social_brand_voice_get', 'social_brand_voice_save',
   'hub_publish_scene',
   'social_post_revise', 'social_post_revisions', 'social_post_revision_status',

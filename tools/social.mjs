@@ -42,7 +42,7 @@ Workflow:
 6. For keyframe jobs, outputUrl is the PNG still for that scene and slot, totalCreditsUsed is the charge, and steps.assetId is the written still. For video jobs, outputUrl must be an MP4. A URL ending in .mp4.png is a broken document-icon poster, not the clip. Do not show a poster as the video and do not put it in mediaItems. Wait for stitch outputUrl or the asset source MP4.
 7. studio_reconstruct_3d is an optional GLB mesh (150 credits standard TRELLIS, 350 premium Hunyuan). Listing photos are enough for an accurate SKU clip. Do not run 3D unless they asked for a 3D object. 3D is not USDZ and is not fed into Luma.
 8. Stop after stills and after the MP4 so the merchant can approve. Schedule posts with social_post_schedule and mediaItems (the MP4 URL) at an exact ISO scheduledAt. They land in the review queue. Resolve with studio_review_resolve. When the merchant wants a change to a queued post ("I like this but the house is red, make it blue"), use social_post_revise with their words, show before and after, then social_post_revision_accept or keep chatting. The real product in an image stays identical. A video change re-renders one scene; poll social_post_revision_status. Approval is the merchant's setting: social_approval_mode_get, and social_approval_mode_set only when they ask (review = approve each post, auto = post automatically, inherit = follow the Growth Line).
-9. After Social Studio publishes, call social_posts with status posted and show publishedUrl. That is the Instagram, TikTok, YouTube, or other network permalink. Drafts and review items have none until they post. social_connections lists this merchant's connected accounts (platform plus accountName). It is not a Hub shopper list. Never invent a customer directory.
+9. After Social Studio publishes, call social_posts with status posted and show publishedUrl. That is the Instagram, TikTok, YouTube, or other network permalink. Drafts and review items have none until they post. social_connections lists this merchant's connected accounts (platform plus accountName). It is not a Hub shopper list. Never invent a customer directory. A failed post (often a revoked token) can go out again with social_post_retry once social_connections shows its account connected. After posting by hand in the browser on a network Social Studio cannot post to, call social_post_mark_posted with the live link so the calendar and analytics include it.
 10. Hub posts are a different job (hub_create_post / hub_posts). After a Hub post, show hubPermalink. That is the public Hub URL to share.
 11. Never work around a safety block, never turn the kill switch off, never buy credits, never connect OAuth accounts. Never call ElevenLabs directly. Voices go through studio_voices_search and studio_character_lock_voice.
 
@@ -570,6 +570,37 @@ const RAW_SOCIAL_TOOLS = [
     execute: (args) => adminGraphql(
       `mutation CancelPost($id: ID!) { cancelSocialPost(id: $id) { ${SOCIAL_POST_SHARE_FIELDS} } }`,
       { id: String(args.id) },
+      { allowWrite: true },
+    ),
+  },
+  {
+    name: 'social_post_retry',
+    description: 'Queue a failed Social Studio post to publish again once its account is reconnected. Resets the retry count and clears the error. Optional scheduledAt (ISO, default now). Refused while the account is still expired or disconnected.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string' }, scheduledAt: { type: 'string' } },
+      required: ['id'],
+    },
+    execute: (args) => adminGraphql(
+      `mutation RetryPost($id: ID!, $input: RetrySocialPostInput) { retrySocialPost(id: $id, input: $input) { ${SOCIAL_POST_SHARE_FIELDS} } }`,
+      { id: String(args.id), input: { scheduledAt: args.scheduledAt ? String(args.scheduledAt) : null } },
+      { allowWrite: true },
+    ),
+  },
+  {
+    name: 'social_post_mark_posted',
+    description: 'Record a Social Studio post you published by hand in the browser (TikTok, YouTube, Pinterest, personal LinkedIn, and similar). publishedUrl is the live link and must be on that post\'s network. Optional postedAt (ISO, default now). The post becomes posted and metrics sync skips it.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string' }, publishedUrl: { type: 'string' }, postedAt: { type: 'string' } },
+      required: ['id', 'publishedUrl'],
+    },
+    execute: (args) => adminGraphql(
+      `mutation MarkPosted($id: ID!, $input: MarkSocialPostPostedManuallyInput!) { markSocialPostPostedManually(id: $id, input: $input) { ${SOCIAL_POST_SHARE_FIELDS} } }`,
+      {
+        id: String(args.id),
+        input: { publishedUrl: String(args.publishedUrl || ''), postedAt: args.postedAt ? String(args.postedAt) : null },
+      },
       { allowWrite: true },
     ),
   },

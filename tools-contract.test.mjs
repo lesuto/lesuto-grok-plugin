@@ -478,6 +478,36 @@ test('hub GraphQL retries without hubPermalink on schema lag and still returns a
   assert.equal(out.storePosts[0].hubPermalink, 'https://hub.lesuto.com/post/9');
 });
 
+test('social_post_retry and social_post_mark_posted send the recovery mutations', async () => {
+  const { socialTools, SOCIAL_OPERATOR_GUIDE } = await import('./tools/social.mjs');
+  assert.match(SOCIAL_OPERATOR_GUIDE, /social_post_retry/);
+  assert.match(SOCIAL_OPERATOR_GUIDE, /social_post_mark_posted/);
+  const retry = socialTools.find((t) => t.name === 'social_post_retry');
+  const mark = socialTools.find((t) => t.name === 'social_post_mark_posted');
+  assert.deepEqual(mark.inputSchema.required, ['id', 'publishedUrl']);
+  const sent = [];
+  await withAgentEnv(async () => {
+    await withMockFetch((_url, init) => {
+      const body = JSON.parse(init.body);
+      sent.push(body);
+      if (body.query.includes('retrySocialPost')) {
+        return jsonResponse(200, { data: { retrySocialPost: { id: '41', status: 'scheduled' } } });
+      }
+      return jsonResponse(200, { data: { markSocialPostPostedManually: { id: '41', status: 'posted' } } });
+    }, async () => {
+      await retry.execute({ id: 41 });
+      await mark.execute({ id: '41', publishedUrl: 'https://www.tiktok.com/@lesuto/video/123', postedAt: '2026-10-29T08:00:00Z' });
+    });
+  });
+  assert.match(sent[0].query, /retrySocialPost\(id: \$id, input: \$input\)/);
+  assert.deepEqual(sent[0].variables, { id: '41', input: { scheduledAt: null } });
+  assert.match(sent[1].query, /markSocialPostPostedManually\(id: \$id, input: \$input\)/);
+  assert.deepEqual(sent[1].variables, {
+    id: '41',
+    input: { publishedUrl: 'https://www.tiktok.com/@lesuto/video/123', postedAt: '2026-10-29T08:00:00Z' },
+  });
+});
+
 test('social_posts rejects unknown status values', async () => {
   const { socialPostStatusArg } = await import('./tools/social.mjs');
   assert.equal(socialPostStatusArg(null), null);

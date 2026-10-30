@@ -12,7 +12,7 @@ const EXPECTED_TOOLS = [
   'orders_snapshot', 'search_catalog', 'inventory_stock', 'channel_analytics', 'shipping_labels',
   'adjust_variant_stock', 'create_shipment', 'buy_shipping_label',
   'store_status', 'site_status', 'hub_posts', 'hub_create_post', 'hub_create_scene', 'hub_update_post',
-  'blog_list', 'blog_get', 'blog_create', 'blog_update', 'blog_publish', 'blog_unpublish',
+  'blog_list', 'blog_get', 'blog_create', 'blog_update', 'blog_publish', 'blog_unpublish', 'blog_bake_cover',
   'blog_cadence_save',
   'social_connections', 'social_posts', 'social_growth_line_draft', 'social_growth_line_save',
   'social_campaign_draft', 'social_campaign_save', 'social_campaign_arm', 'social_campaign_pause',

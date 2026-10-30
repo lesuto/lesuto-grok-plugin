@@ -158,4 +158,18 @@ export const blogTools = [
       { allowWrite: true },
     ),
   },
+  {
+    name: 'blog_bake_cover',
+    description: 'Bake LESUTO, the post title and the "Let\'s Succeed Together" motto onto the post\'s cover background (an untyped charcoal plate from the media library) and set the baked image as the cover. No AI credits. Run it once per new cover; it refuses a cover that already has its title. Requires a Content or All jobs key.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      required: ['id'],
+    },
+    execute: (args) => adminGraphql(
+      `mutation AiBlogBakeCover($id: ID!) { aiBlogBakeCover(id: $id) { ${POST_FIELDS} } }`,
+      { id: String(args.id) },
+      { allowWrite: true },
+    ),
+  },
 ];

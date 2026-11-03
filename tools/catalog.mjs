@@ -4,11 +4,11 @@ import { requireConfirm } from '../lib/denied-ops.mjs';
 export const CATALOG_OPERATOR_GUIDE = `You stock Lesuto stores through named Catalog tools. You do not create SKUs or change prices.
 
 Workflow:
-1. list_store_collections with storeId to see aisles on this website. get_store_collection and list_collection_products for one aisle. list_supplier_collection_mirrors for live supplier aisles.
+1. list_store_collections to see aisles on this website. Name the website by storeId (hubStoreId from list_deployments) or by deploymentId (the id from list_deployments; its store record is created on first use, so an AI Website Builder site works too). The reply carries storeId: use it on the other aisle tools. get_store_collection and list_collection_products for one aisle. list_supplier_collection_mirrors for live supplier aisles.
 2. suggest_catalog to find home-plan suppliers and products already on the marketplace.
 3. create_store when they asked for a new store. Default platform is sdk. Use wordpress only when they named WordPress. Add a Hub store only when they asked for Hub.
 4. subscribe_to_supplier (confirm true). Then update routing with the new deployment when they named that store.
-5. create_store_collection for a hand-picked aisle on THIS store. Pass storeId. For a child aisle (Craftsman under Home Plans), pass parentId of that store's parent collection so the child is assigned to the same channel. Never reuse another merchant's collection ids. Never pass productIds.
+5. create_store_collection for a hand-picked aisle on THIS store. Pass storeId or deploymentId. For a child aisle (Craftsman under Home Plans), pass parentId of that store's parent collection so the child is assigned to the same channel. Never reuse another merchant's collection ids. Never pass productIds.
 6. For a smart search aisle: preview_smart_collection, then create_smart_collection with a website plus at least one keyword, product type, supplier, or facet. It keeps filling from that website. update_smart_collection_rule to change the search.
 7. For a live supplier aisle: list_supplier_collections, then subscribe_to_supplier_collection for one named aisle. That is not dump-the-catalog. unsubscribe_supplier_collection to drop a mirror.
 8. add_products_to_store and add_products_to_collection to put products on a manual aisle. remove_products_from_collection to take products off. Do not add or remove products by hand on a smart or mirrored aisle.
@@ -19,6 +19,18 @@ Workflow:
 Credits: subscribe and store creates are writes. Confirm true is required on those tools.`;
 
 const COLLECTION_FIELDS = `id name slug description isPrivate parentId productCount storeId storeName sourceType isRuleBased isEditable children { id name slug parentId productCount isPrivate }`;
+
+/**
+ * The website an aisle tool works on: storeId (the website's store record) or deploymentId (the
+ * website itself; the API creates its store record on first use). One of the two is required.
+ */
+export function websiteRef(args) {
+  const storeId = String(args?.storeId || '').trim();
+  const deploymentId = String(args?.deploymentId || '').trim();
+  if (storeId && deploymentId) throw new Error('Pass storeId or deploymentId, not both.');
+  if (!storeId && !deploymentId) throw new Error('storeId or deploymentId is required. Both come from list_deployments: hubStoreId, or the deployment id.');
+  return storeId ? { storeId } : { deploymentId };
+}
 
 function ruleFromArgs(args) {
   const keyword = String(args.keyword || '').trim().slice(0, 120);
@@ -131,27 +143,26 @@ export const catalogTools = [
   },
   {
     name: 'create_store_collection',
-    description: 'Create a merchant collection (aisle) on this store. storeId is required. Child aisles must pass parentId so they stay on this channel. Optional featuredAssetId from the library. Do not pass productIds. Requires confirm true.',
+    description: 'Create a merchant collection (aisle) on this store. Pass storeId (hubStoreId from list_deployments) or deploymentId (the website; its store record is created on first use). Child aisles must pass parentId so they stay on this channel. Optional featuredAssetId from the library. Do not pass productIds. Requires confirm true.',
     destructiveHint: true,
     inputSchema: {
       type: 'object',
       properties: {
         name: { type: 'string' },
         description: { type: 'string' },
-        storeId: { type: 'string' },
+        storeId: { type: 'string', description: 'The website\'s store record (hubStoreId on list_deployments)' },
+        deploymentId: { type: 'string', description: 'The website by its deployment id (list_deployments id), instead of storeId' },
         parentId: { type: 'string', description: 'Parent aisle id on this store. Required for child style collections.' },
         featuredAssetId: { type: 'string', description: 'Existing library image on this channel' },
         confirm: { type: 'boolean' },
       },
-      required: ['name', 'storeId'],
+      required: ['name'],
     },
     execute: (args) => {
       requireConfirm(args, 'collection create');
       const name = String(args.name || '').trim();
-      const storeId = String(args.storeId || '').trim();
       if (!name) throw new Error('name is required');
-      if (!storeId) throw new Error('storeId is required');
-      const input = { name, storeId };
+      const input = { name, ...websiteRef(args) };
       if (args.description) input.description = String(args.description);
       if (args.parentId) input.parentId = String(args.parentId);
       if (args.featuredAssetId) input.featuredAssetId = String(args.featuredAssetId);
@@ -166,32 +177,31 @@ export const catalogTools = [
   },
   {
     name: 'list_store_collections',
-    description: 'List owned and supplier aisles on this store. Pass storeId. Read only. Use these ids for parentId, membership, visibility, and delete.',
+    description: 'List owned and supplier aisles on this website. Pass storeId (hubStoreId from list_deployments) or deploymentId (the website; works for AI Website Builder sites with no store record yet). Read only. The reply\'s storeId is the store record to use on the other aisle tools; collection ids serve parentId, membership, visibility, and delete.',
     inputSchema: {
       type: 'object',
       properties: {
-        storeId: { type: 'string' },
+        storeId: { type: 'string', description: 'The website\'s store record (hubStoreId on list_deployments)' },
+        deploymentId: { type: 'string', description: 'The website by its deployment id (list_deployments id), instead of storeId' },
         term: { type: 'string' },
         skip: { type: 'number' },
         take: { type: 'number' },
       },
-      required: ['storeId'],
     },
     execute: (args) => {
-      const storeId = String(args.storeId || '').trim();
-      if (!storeId) throw new Error('storeId is required');
+      const website = websiteRef(args);
       const take = Math.min(Math.max(Number(args.take) || 50, 1), 100);
       const skip = Math.max(Number(args.skip) || 0, 0);
       const term = String(args.term || '').trim().slice(0, 120);
       return adminGraphql(
-        `query ListStoreCollections($storeId: ID, $skip: Int, $take: Int, $term: String) {
-          merchantCollections(storeId: $storeId, skip: $skip, take: $take, term: $term) {
-            ownedTotal supplierTotal ownedProductTotal supplierProductTotal
+        `query ListStoreCollections($storeId: ID, $deploymentId: ID, $skip: Int, $take: Int, $term: String) {
+          merchantCollections(storeId: $storeId, deploymentId: $deploymentId, skip: $skip, take: $take, term: $term) {
+            storeId ownedTotal supplierTotal ownedProductTotal supplierProductTotal
             ownedCollections { ${COLLECTION_FIELDS} }
             supplierCollections { ${COLLECTION_FIELDS} }
           }
         }`,
-        { storeId, skip, take, term: term || null },
+        { storeId: website.storeId || null, deploymentId: website.deploymentId || null, skip, take, term: term || null },
       );
     },
   },

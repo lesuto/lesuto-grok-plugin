@@ -3,6 +3,7 @@ import { wrapCreditTool } from '../lib/credit-confirm.mjs';
 
 const GROWTH_FIELDS = `id name slug promise audience tone pillars topicsIn topicsOut ctaLadder characterIds status storeId`;
 const CAMPAIGN_FIELDS = `id name recipeType status storeId creditHoldId estimatedCredits config reviewDefault`;
+const CADENCE_FIELDS = `id name status growthLineId storeId deploymentConfigId publishDestinations platforms approvalMode cadencePerDay cadencePerWeek contentFocus nextRunAt lastError`;
 const STUDIO_DURATIONS = [6, 8, 15, 30];
 
 export function snapStudioDuration(raw) {
@@ -29,7 +30,7 @@ export function engineForNativeAudio(engine, includeAudio) {
 
 export const SOCIAL_OPERATOR_GUIDE = `You operate Lesuto Social Studio as this merchant. Hub is a separate surface. Social Studio publishes to Instagram, Facebook, Pinterest, X, LinkedIn, TikTok, and YouTube, not to Hub.
 
-Named tools (use these; lesuto_graphql is read-only and refuses Scenes and writes): studio_operator_guide, studio_still_modes, studio_stores, studio_scenes, studio_scene_update, studio_scenes_build, studio_scenes_reorder, studio_catalog_angles, studio_assets, studio_shot_presets, studio_music_search, studio_keyframes, studio_keyframe_regenerate, studio_job_status, studio_render_scenes, studio_stitch_from_script, studio_render_timeline, studio_export_status, studio_reconstruct_3d, studio_produce_video. Changing stillMode on studio_scene_update clears start and end stills; generate them again. Assign library stills with startAssetId/endAssetId and clips with clipAssetId. quality=hero is 450 credits; engine=cinema is 350. Stitch cinema/hero bills premium (80). studio_render_scenes includeAudio adds native ambience.
+Named tools (use these; lesuto_graphql is read-only and refuses Scenes and writes): studio_operator_guide, studio_still_modes, studio_stores, studio_scenes, studio_scene_update, studio_scenes_build, studio_scenes_reorder, studio_catalog_angles, studio_assets, studio_clip_search, studio_clip_reuse_options, studio_clip_reuse, studio_clip_adopt, studio_shot_presets, studio_music_search, studio_keyframes, studio_keyframe_regenerate, studio_job_status, studio_render_scenes, studio_stitch_from_script, studio_render_timeline, studio_export_status, studio_reconstruct_3d, studio_produce_video. Changing stillMode on studio_scene_update clears start and end stills; generate them again. Assign library stills with startAssetId/endAssetId and clips with clipAssetId. quality=hero is 450 credits; engine=cinema is 350. Stitch cinema/hero bills premium (80). studio_render_scenes includeAudio adds native ambience. Before rendering, search studio_clip_search by productId and shotType; studio_render_scenes reuseSimilar=true places a matching earlier clip of the same product and shot at zero credits.
 
 AI Generated Media License: you cannot accept it, and nothing you send counts as acceptance. Before any AI image, video, look, keyframe, or brief lock, call ai_media_license_status for the active store. If accepted is false, stop and tell the merchant in plain words: this store's owner must accept the AI Generated Media License once for this store, open acceptUrl, click "Review and Accept" on the store row, read it, tick the box, and click "I Accept for This Store". If canAccept is true, the person who issued your key is an owner and can do it themselves. If canAccept is false, they must send acceptUrl to a Merchant Owner or Supplier Owner of that store. Each store is accepted separately; check again after use_store. If a call fails with AI_MEDIA_LICENSE_REQUIRED, relay that message (it has the link) instead of retrying.
 
@@ -44,11 +45,28 @@ Workflow:
 8. Stop after stills and after the MP4 so the merchant can approve. Schedule posts with social_post_schedule and mediaItems (the MP4 URL) at an exact ISO scheduledAt. They land in the review queue. Resolve with studio_review_resolve. When the merchant wants a change to a queued post ("I like this but the house is red, make it blue"), use social_post_revise with their words, show before and after, then social_post_revision_accept or keep chatting. The real product in an image stays identical. A video change re-renders one scene; poll social_post_revision_status. Approval is the merchant's setting: social_approval_mode_get, and social_approval_mode_set only when they ask (review = approve each post, auto = post automatically, inherit = follow the Growth Line).
 9. After Social Studio publishes, call social_posts with status posted and show publishedUrl. That is the Instagram, TikTok, YouTube, or other network permalink. Drafts and review items have none until they post. social_connections lists this merchant's connected accounts (platform plus accountName). It is not a Hub shopper list. Never invent a customer directory. A failed post (often a revoked token) can go out again with social_post_retry once social_connections shows its account connected. After posting by hand in the browser on a network Social Studio cannot post to, call social_post_mark_posted with the live link so the calendar and analytics include it.
 10. Hub posts are a different job (hub_create_post / hub_posts). After a Hub post, show hubPermalink. That is the public Hub URL to share.
-11. Never work around a safety block, never turn the kill switch off, never buy credits, never connect OAuth accounts. Never call ElevenLabs directly. Voices go through studio_voices_search and studio_character_lock_voice.
+11. Many accounts and brands: social_brands lists brands (Lesuto Home, Apparel and the rest) with their connection ids; social_brand_save creates or regroups one. social_planner_posts reads a time window filtered by brand, account, network (including Threads) or status. social_posts_reschedule moves posts by an offset or to an exact time; posts in review stay in review, and quiet hours or blackouts come back as per-post failures. social_posts_approve approves posts in review only after the merchant said yes to them. social_posts_cancel stops posts from publishing. social_analytics_compare puts accounts side by side, rolls them up by brand, or combines them, with engagement rate, clicks, followers and top posts. social_posting_slots_set gives an account weekly posting times and social_queue_slots shows its next free ones; pass addToQueue (and optionally firstComment for Instagram, LinkedIn or X) to social_post_schedule. social_post_recycle shares a post that went out again into review. social_reports, social_report_save and social_report_send manage emailed reports. If social_connections shows an account expired, in error, or tokenExpiresAt soon with autoRenews false, tell the merchant to reconnect it; you cannot.
+12. Never work around a safety block, never turn the kill switch off, never buy credits, never connect OAuth accounts. Never call ElevenLabs directly. Voices go through studio_voices_search and studio_character_lock_voice.
 
 Credits: each AI draft and generation spends AI credits on this channel, plus integration credits per GraphQL write.`;
 
-const SOCIAL_POST_SHARE_FIELDS = 'id status caption postedAt publishedUrl errorMessage connection { platform accountName }';
+const SOCIAL_POST_SHARE_FIELDS = 'id status caption scheduledAt postedAt publishedUrl errorMessage imageUrls utmContent connection { platform accountName }';
+
+/** Only the fields the agent passed, so an update never blanks a caption or the schedule. */
+export function socialPostUpdateInput(args) {
+  const input = {};
+  for (const key of ['caption', 'scheduledAt', 'videoTitle', 'utmContent']) {
+    if (args?.[key] !== undefined && args[key] !== null) input[key] = String(args[key]);
+  }
+  for (const key of ['hashtags', 'imageUrls']) {
+    if (!Array.isArray(args?.[key])) continue;
+    const values = args[key].map((v) => String(v).trim()).filter(Boolean);
+    if (key === 'imageUrls' && values.some((u) => !/^https:\/\//.test(u))) throw new Error('imageUrls must be https URLs.');
+    input[key] = values;
+  }
+  if (Object.keys(input).length === 0) throw new Error('Pass at least one field to change.');
+  return input;
+}
 
 export const SOCIAL_POST_STATUSES = new Set([
   'posted',
@@ -105,12 +123,24 @@ const RAW_SOCIAL_TOOLS = [
   },
   {
     name: 'social_connections',
-    description: 'List this merchant\'s connected Instagram, TikTok, YouTube, Facebook, Pinterest, X, and LinkedIn accounts (platform + accountName). Not Hub shoppers or Command Center teammates.',
+    description: 'List this merchant\'s connected Instagram, Threads, TikTok, YouTube, Facebook, Pinterest, X, and LinkedIn accounts (platform + accountName), with brand, followers, queue time slots and health: status expired or error, or a tokenExpiresAt soon with autoRenews false, means the owner must reconnect it in a browser. Not Hub shoppers or Command Center teammates.',
     inputSchema: { type: 'object', properties: { storeId: { type: 'number' } } },
-    execute: (args) => adminGraphql(
-      `query SocialConnections($storeId: Int) { socialConnections(storeId: $storeId) { id platform accountName status storeId } }`,
-      { storeId: args.storeId ?? null },
-    ),
+    execute: async (args) => {
+      const vars = { storeId: args.storeId ?? null };
+      try {
+        return await adminGraphql(
+          `query SocialConnections($storeId: Int) { socialConnections(storeId: $storeId) { id platform accountName status storeId errorMessage tokenExpiresAt autoRenews brandGroupId followerCount postingSlots { day time } postingTimezone } }`,
+          vars,
+        );
+      } catch (err) {
+        // Older API without brands and health fields: the basic list still answers.
+        if (!/Cannot query field/i.test(String(err?.message || err))) throw err;
+        return adminGraphql(
+          `query SocialConnections($storeId: Int) { socialConnections(storeId: $storeId) { id platform accountName status storeId errorMessage } }`,
+          vars,
+        );
+      }
+    },
   },
   {
     name: 'social_posts',
@@ -239,13 +269,27 @@ const RAW_SOCIAL_TOOLS = [
   },
   {
     name: 'social_campaign_arm',
-    description: 'Reserve credits if needed, then arm a campaign. Requires a Social or All jobs key.',
+    description: 'Reserve credits if needed, then arm a campaign. Requires a Social or All jobs key. Quotes the credits it reserves first; call again with confirm true after the merchant agrees.',
     inputSchema: {
       type: 'object',
-      properties: { id: { type: 'string' } },
+      properties: { id: { type: 'string' }, confirm: { type: 'boolean', description: 'Required after the credit quote.' } },
       required: ['id'],
     },
     execute: async (args) => {
+      // Arming holds the campaign's estimated credits for its whole run: the merchant agrees first.
+      if (args.confirm !== true) {
+        const data = await adminGraphql(`query { socialCampaigns { ${CAMPAIGN_FIELDS} } }`);
+        const campaign = (data.socialCampaigns || []).find((c) => String(c.id) === String(args.id));
+        if (!campaign) throw new Error(`No campaign ${args.id} on this channel.`);
+        const credits = Number(campaign.estimatedCredits) || null;
+        return {
+          needsConfirm: true,
+          credits,
+          message: campaign.creditHoldId
+            ? `Campaign "${campaign.name}" already has its credits reserved. Call again with confirm true to arm it.`
+            : `Arming "${campaign.name}" reserves about ${credits ?? 'its estimated'} AI credits for its run. Call again with confirm true after the merchant agrees.`,
+        };
+      }
       await adminGraphql(
         `mutation ReserveCampaign($id: ID!) { reserveSocialCampaignCredits(id: $id) { id status creditHoldId } }`,
         { id: String(args.id) },
@@ -453,6 +497,8 @@ const RAW_SOCIAL_TOOLS = [
         scheduledAt: { type: 'string' },
         videoTitle: { type: 'string' },
         mediaItems: { type: 'array', items: { type: 'object' } },
+        addToQueue: { type: 'boolean', description: 'Schedule each account at its next free posting slot instead of scheduledAt.' },
+        firstComment: { type: 'string', description: 'Comment posted under the post after it publishes (Instagram, LinkedIn, X).' },
       },
       required: ['connectionIds', 'caption'],
     },
@@ -465,6 +511,8 @@ const RAW_SOCIAL_TOOLS = [
           scheduledAt: args.scheduledAt || null,
           videoTitle: args.videoTitle || null,
           mediaItems: args.mediaItems || null,
+          addToQueue: args.addToQueue === true ? true : null,
+          firstComment: args.firstComment ? String(args.firstComment) : null,
           asDraftReview: true,
           publishGate: 'review_required',
         },
@@ -474,19 +522,52 @@ const RAW_SOCIAL_TOOLS = [
   },
   {
     name: 'blog_cadence_save',
-    description: 'Save a Social Studio blog cadence on a Growth Line.',
+    description: 'Save a Social Studio blog cadence on a Growth Line. Pass id to edit one. A new cadence is saved as a draft (not armed). Put site_blog in publishDestinations with deploymentConfigId to write for that website; the other destinations are social networks (linkedin, facebook, instagram, pinterest, x).',
     inputSchema: {
       type: 'object',
       properties: {
+        id: { type: 'string' },
         name: { type: 'string' },
         growthLineId: { type: 'number' },
+        storeId: { type: 'number', description: 'Hub store id (studio_stores), not a list_stores L-code.' },
+        deploymentConfigId: { type: 'number', description: 'Website (deployment) id the articles are written for.' },
+        publishDestinations: { type: 'array', items: { type: 'string' } },
+        approvalMode: { type: 'string', description: 'review (approve each post), auto, or inherit (follow the Growth Line).' },
+        cadencePerDay: { type: 'number' },
+        cadencePerWeek: { type: 'number' },
+        contentFocus: { type: 'string', description: 'company or catalog' },
+        articleLayout: { type: 'string' },
+        blogPathPrefix: { type: 'string' },
+        timezone: { type: 'string' },
+        imageSource: { type: 'string', description: 'ai_generate, product_images, library, or none' },
+        coverThemePrompt: { type: 'string' },
       },
       required: ['name', 'growthLineId'],
     },
+    execute: (args) => {
+      const input = { name: String(args.name), growthLineId: Number(args.growthLineId) };
+      if (args.id) input.id = String(args.id);
+      for (const key of ['storeId', 'deploymentConfigId', 'cadencePerDay', 'cadencePerWeek']) {
+        if (args[key] != null) input[key] = Number(args[key]);
+      }
+      for (const key of ['approvalMode', 'contentFocus', 'articleLayout', 'blogPathPrefix', 'timezone', 'imageSource', 'coverThemePrompt']) {
+        if (args[key] != null) input[key] = String(args[key]);
+      }
+      if (Array.isArray(args.publishDestinations)) input.publishDestinations = args.publishDestinations.map(String);
+      return adminGraphql(
+        `mutation UpsertCadence($input: UpsertSocialBlogCadenceInput!) { upsertSocialBlogCadence(input: $input) { ${CADENCE_FIELDS} } }`,
+        { input },
+        { allowWrite: true },
+      );
+    },
+  },
+  {
+    name: 'blog_cadence_list',
+    description: 'List Social Studio blog cadences on this channel, optionally for one Hub store.',
+    inputSchema: { type: 'object', properties: { storeId: { type: 'number' } } },
     execute: (args) => adminGraphql(
-      `mutation UpsertCadence($input: UpsertSocialBlogCadenceInput!) { upsertSocialBlogCadence(input: $input) { id name status growthLineId } }`,
-      { input: { name: String(args.name), growthLineId: Number(args.growthLineId) } },
-      { allowWrite: true },
+      `query SocialBlogCadences($storeId: Int) { socialBlogCadences(storeId: $storeId) { ${CADENCE_FIELDS} } }`,
+      { storeId: args.storeId != null ? Number(args.storeId) : null },
     ),
   },
   {
@@ -551,15 +632,23 @@ const RAW_SOCIAL_TOOLS = [
   },
   {
     name: 'social_post_update',
-    description: 'Edit a scheduled Social Studio post before it publishes.',
+    description: 'Edit a scheduled Social Studio post before it publishes: caption, scheduledAt (ISO), hashtags, videoTitle, imageUrls (replaces the post\'s images, e.g. the article cover photo) and utmContent. Only the fields you pass change.',
     inputSchema: {
       type: 'object',
-      properties: { id: { type: 'string' }, caption: { type: 'string' }, scheduledAt: { type: 'string' } },
+      properties: {
+        id: { type: 'string' },
+        caption: { type: 'string' },
+        scheduledAt: { type: 'string' },
+        hashtags: { type: 'array', items: { type: 'string' } },
+        videoTitle: { type: 'string' },
+        imageUrls: { type: 'array', items: { type: 'string' }, description: 'https image URLs; replaces the current images' },
+        utmContent: { type: 'string' },
+      },
       required: ['id'],
     },
     execute: (args) => adminGraphql(
       `mutation UpdatePost($id: ID!, $input: UpdateSocialPostInput!) { updateSocialPost(id: $id, input: $input) { ${SOCIAL_POST_SHARE_FIELDS} } }`,
-      { id: String(args.id), input: { caption: args.caption, scheduledAt: args.scheduledAt } },
+      { id: String(args.id), input: socialPostUpdateInput(args) },
       { allowWrite: true },
     ),
   },

@@ -22,12 +22,12 @@ Arron Hyman is Founder and CEO, based in Austin, Texas. The motto is **Let's Suc
 
 ## What this plugin does
 
-Grok acts as **you** on the stores that key covers. Start with the big picture, then drill in:
+Grok works as **your agent**: a named account (say "Grok") that you sponsor, with its own role on the stores it covers, never more than you hold. Start with the big picture, then drill in:
 
 - `account_overview`: revenue, orders, average order value, payouts, growth per store, and that store's own leftover credits. No store switch needed.
 - `list_organizations` and `org_overview`: company umbrellas, then revenue and orders for one company. Credits stay on each store.
 - Last 7 / 30 / 90 days and year on one store: revenue, orders, average order value, commission, what sold
-- Lesuto Connect: meeting types, invite links, upcoming bookings, complete or no-show
+- Lesuto Connect in Command Center: meeting types, invite links, upcoming bookings, complete or no-show. Booking pages made in the Lesuto Connect app (lesutoconnect.com/app) belong to a Lesuto ID account and are not visible to agent keys.
 - Catalog search, stock on hand, shipping labels
 - Set stock on hand without changing price
 - Buy a shipping label after you confirm
@@ -41,15 +41,26 @@ Jobs: **Read** is always on. Tick **Connect**, **Content**, **Social**, **Fulfil
 
 Public guests still book on your Connect page. Grok creates invite links. Pass a guest email only when you asked to send the invite.
 
-## Three key tiers
+## Agents and keys
 
-Mint from Command Center or Lesuto Seller:
+Every key belongs to an agent, and every agent has a sponsor: the person who added it. Add one in Command Center or Lesuto Seller:
 
-| Tier | What it covers | New stores |
-|---|---|---|
-| Channel | The stores you tick. Frozen at mint time | Rotate to add |
-| Organization | Every store in one company, if you also have Agent Access there | Appear automatically |
-| Everything | Every store you have Agent Access on, across companies | Appear automatically |
+| Agent | Where | What it covers | New stores |
+|---|---|---|---|
+| Store | Teams → AI Agent Access | That store | Add another agent, or widen its scope |
+| Brand | Organization → People & access | The brands you pick, every country | Appear automatically |
+| Organization | Organization → People & access | Every store of the organization | Appear automatically |
+| Personal | My Account → My agents | What you can reach; a follow-me agent copies your role in each organization | Appear automatically |
+
+The agent gets a role (Admin, Catalog, Fulfilment, Finance or Viewer, never Owner) like a teammate, and never more than its sponsor holds. If the sponsor leaves the organization, the agent pauses until an owner gives it a new sponsor or revokes it. A paused or revoked agent gets HTTP 401 (`AGENT_PAUSED`, `AGENT_REVOKED`).
+
+Some actions wait for a person: payouts and bank accounts, roles and permissions, logins and API keys, refunds above the organization's limit (USD 100 by default), deleting data, bulk exports. Lesuto answers HTTP 403 `AGENT_CONFIRMATION_REQUIRED` with a `requestId` and a summary. Tell the person what is waiting. Once their sponsor approves it in the dashboard (within 24 hours), retry that same call once with the header `X-Lesuto-Agent-Confirm: <requestId>` (the 403 message and its `confirmHeader` field name it). Without the header the retry opens a new request.
+
+### Keys made before agents
+
+On 25 October 2026 every live key became an agent named after the key's label, sponsored by the person who made it. The key did not change: it still works as that person, on the same stores, until its agent is upgraded. Upgrade it from AI Agent Access (**Upgrade to its own account**; the preview shows the role and stores it will hold). The secret stays the same, so nothing changes in Grok.
+
+From **23 April 2027** a key that still works as the person who made it stops with HTTP 401 `AGENT_KEY_RETIRED`. Upgrade its agent before then, or add a new agent and put its key in your secrets.
 
 Details: [AI Agent Access docs](https://docs.lesuto.com/docs/integrations/ai-agent-access).
 
@@ -57,9 +68,9 @@ Details: [AI Agent Access docs](https://docs.lesuto.com/docs/integrations/ai-age
 
 `account_overview` includes `creditBalance` on every store. That number is that store's integration credits. `org_overview` adds up revenue and orders for the company. Asking about one store spends that store's credits: **1** for a read, **2** for a write. `account_overview` itself is one read.
 
-You can put a store on a key when you can operate it: Owner, Store Manager, or AI Agent Access on that store. A company invite shows the rollup. If Agent Access is removed, the key stops covering that store on the next question. The other stores on the key keep working.
+An agent covers the stores its role and scope reach, and only those its sponsor can still operate. If the sponsor loses a store, the agent stops covering it on the next question. The other stores keep working.
 
-The key cannot change team, company membership, or billing. Those stay in Command Center.
+The key cannot add or change agents, people, organization membership, or billing. Those stay in Command Center.
 
 ## Benefits
 
@@ -68,11 +79,11 @@ The key cannot change team, company membership, or billing. Those stay in Comman
 - Confirm the SKU and stock. Fulfillment keys can set stock on hand without changing price.
 - Read recent orders and tracking
 - Run Social Studio: campaigns, posts, and campaign video, including character look photos you can pick
-- Rotate or revoke the key from Command Center when someone leaves
+- Pause, rotate or revoke the agent from Command Center. When its sponsor leaves, it pauses on its own.
 
 ## Create a Lesuto account
 
-1. Sign up at [www.lesuto.com/signup](https://www.lesuto.com/signup) as a **merchant** or **supplier**.
+1. Sign up at [www.lesuto.com/sign-up](https://www.lesuto.com/sign-up) as a **merchant** or **supplier**.
 2. Open **Command Center** or the **Lesuto Seller** app. Hub shopper login is the wrong account.
 3. Finish store setup so you have a live business account (a channel token such as `merchant_your-slug_admin`).
 
@@ -81,9 +92,9 @@ The key cannot change team, company membership, or billing. Those stay in Comman
 1. Command Center → **Integrations** → activate **AI Agent Access** on each store you want to cover. Social Studio also opens that listing: **Automate with AI Agent Access** sits left of Store.
 2. Open **Teams → AI Agent Access** for this store (after activate), **Organizations → AI Agent Access** for the company (always in Organizations), or Lesuto Seller → **AI Agent Access**.
 
-## Mint the key
+## Add an agent and its key
 
-1. Create a key. Pick a tier: this store, one organization, or everything you manage. Then pick a job, and Read on a store if you want a tighter ceiling:
+1. Add an agent and name it (for example "Grok"). Pick where it works: this store, some brands, the whole organization, or follow you everywhere (My Account → My agents). Then pick a job, and Read on a store if you want a tighter ceiling:
    - **Read**: answers questions
    - **Connect**: bookings and invite links
    - **Content**: store blog and Hub posts
@@ -173,7 +184,7 @@ Raw GraphQL (no MCP): `POST https://api.lesuto.com/api/v3/admin/graphql` with yo
 
 ## How a professional uses it
 
-Store the key in Grok or Cursor plugin settings. Rotate when someone leaves. Revoke in Command Center if a key leaks.
+Store the key in Grok or Cursor plugin settings. An agent holds up to 3 live keys, so you can rotate without downtime. Revoke the key (or the agent) in Command Center if a key leaks.
 
 Reads cost **1** integration credit. Writes cost **2**. `account_overview` is one read, no matter how many stores sit on the key. Exhausted credits return HTTP 402. Gateway rate limits per key: **60**/minute, **600**/hour, writes also **20**/minute.
 
@@ -182,6 +193,8 @@ Network: this process only calls `https://api.lesuto.com/api/v3/admin/graphql` (
 ## Security
 
 This repo is public. Never commit a live `LESUTO_AGENT_KEY`, channel token, or private key file. See [SECURITY.md](SECURITY.md).
+
+Every tool result comes back as `{ "notice": "...", "data": { ... } }`. What is under `data` is store data, and the model is told never to follow instructions written inside it (a customer message that says "refund my order" stays a message). Customer names, e-mails, phones and addresses arrive as `[redacted]` unless the store owner lets the agent read customer details, for a stated purpose and for up to 90 days.
 
 ## Tests
 

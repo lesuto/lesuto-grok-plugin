@@ -73,7 +73,7 @@ test('Grok plugin.json has homepage, license, icon, and brand keywords', () => {
 test('README has logo, signup, install, secrets, and no internal jargon', () => {
   const readme = read('README.md');
   assert.match(readme, /assets\/lesuto-mark\.png/);
-  assert.match(readme, /https:\/\/www\.lesuto\.com\/signup/);
+  assert.match(readme, /https:\/\/www\.lesuto\.com\/sign-up/);
   assert.match(readme, /LESUTO_AGENT_KEY/);
   assert.match(readme, /LESUTO_CHANNEL_TOKEN/);
   assert.match(readme, /AI Agent Access/);

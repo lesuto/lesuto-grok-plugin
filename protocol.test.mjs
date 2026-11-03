@@ -11,9 +11,9 @@ const EXPECTED_TOOLS = [
   'cancel_booking', 'complete_booking', 'no_show_booking',
   'orders_snapshot', 'search_catalog', 'inventory_stock', 'channel_analytics', 'shipping_labels',
   'adjust_variant_stock', 'create_shipment', 'buy_shipping_label',
-  'store_status', 'site_status', 'hub_posts', 'hub_create_post', 'hub_create_scene', 'hub_update_post',
-  'blog_list', 'blog_get', 'blog_create', 'blog_update', 'blog_publish', 'blog_unpublish', 'blog_bake_cover',
-  'blog_cadence_save',
+  'store_status', 'site_status', 'hub_posts', 'hub_create_post', 'hub_create_scene', 'hub_create_story', 'hub_update_post',
+  'blog_list', 'blog_get', 'blog_create', 'blog_generate', 'blog_update', 'blog_publish', 'blog_unpublish', 'blog_bake_cover',
+  'blog_cadence_save', 'blog_cadence_list',
   'social_connections', 'social_posts', 'social_growth_line_draft', 'social_growth_line_save',
   'social_campaign_draft', 'social_campaign_save', 'social_campaign_arm', 'social_campaign_pause',
   'social_post_schedule', 'ai_media_license_status', 'social_generate_image', 'social_generate_video',
@@ -26,6 +26,8 @@ const EXPECTED_TOOLS = [
   'blog_cadence_status', 'social_kill_switch_on', 'social_brand_voice_get', 'social_brand_voice_save',
   'hub_publish_scene',
   'social_post_revise', 'social_post_revisions', 'social_post_revision_status',
+  'social_brands', 'social_brand_save', 'social_planner_posts', 'social_posts_reschedule', 'social_analytics_compare', 'social_posts_approve', 'social_posts_cancel',
+  'social_queue_slots', 'social_posting_slots_set', 'social_post_recycle', 'social_reports', 'social_report_save', 'social_report_send',
   'social_post_revision_accept', 'social_post_revision_discard',
   'social_approval_mode_get', 'social_approval_mode_set',
   'list_stores', 'use_store', 'account_overview',
@@ -164,6 +166,46 @@ test('named read tools call GraphQL through the mock', async () => {
       });
       assert.equal(analytics.result.isError, undefined);
       assert.equal(calls.length, 2);
+    });
+  });
+});
+
+test('hub_create_scene sends the duration createScene requires', async () => {
+  await withAgentEnv(async () => {
+    await withMockFetch((_url, init) => {
+      const body = JSON.parse(init.body);
+      assert.match(body.query, /createScene/);
+      assert.equal(body.variables.input.duration, 14);
+      assert.deepEqual(body.variables.input.productIds, ['18755']);
+      return jsonResponse(200, { data: { createScene: { id: '51', title: 'T', hubPermalink: 'https://hub.lesuto.com/scenes?id=51' } } });
+    }, async (calls) => {
+      const res = await handle({
+        jsonrpc: '2.0', id: 31, method: 'tools/call',
+        params: { name: 'hub_create_scene', arguments: { title: 'T', videoUrl: 'https://cdn.lesuto.com/x.mp4', duration: 13.9, productIds: [18755] } },
+      });
+      assert.equal(res.result.isError, undefined);
+      assert.equal(calls.length, 1);
+    });
+  });
+});
+
+test('hub_create_story posts a store story with tagged products and a capped expiry', async () => {
+  await withAgentEnv(async () => {
+    await withMockFetch((_url, init) => {
+      const body = JSON.parse(init.body);
+      assert.match(body.query, /createStoreStory/);
+      assert.equal(body.variables.mediaType, 'video');
+      assert.equal(body.variables.storeId, '243');
+      assert.equal(body.variables.expiresInHours, 168);
+      assert.deepEqual(body.variables.productIds, ['18758']);
+      return jsonResponse(200, { data: { createStoreStory: { id: '9', storeId: '243', mediaType: 'video', productIds: ['18758'], expiresAt: '2026-11-09T00:00:00Z' } } });
+    }, async (calls) => {
+      const res = await handle({
+        jsonrpc: '2.0', id: 32, method: 'tools/call',
+        params: { name: 'hub_create_story', arguments: { mediaUrl: 'https://cdn.lesuto.com/s.mp4', storeId: 243, productIds: ['18758'], expiresInHours: 500 } },
+      });
+      assert.equal(res.result.isError, undefined);
+      assert.equal(calls.length, 1);
     });
   });
 });

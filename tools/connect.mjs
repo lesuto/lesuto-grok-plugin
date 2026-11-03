@@ -4,7 +4,7 @@ import { requireConfirm } from '../lib/denied-ops.mjs';
 export const connectTools = [
   {
     name: 'list_meeting_types',
-    description: 'List Lesuto Connect meeting types for this channel.',
+    description: 'List the meeting types (booking pages) this store schedules in Command Center. Pages made in the Lesuto Connect app (lesutoconnect.com/app) belong to a Lesuto ID account, not to a store channel, so no agent key can read or book them; the merchant shares that public booking link themselves.',
     inputSchema: { type: 'object', properties: {} },
     execute: () => adminGraphql(`query ListMeetingTypes { schedulingMeetingTypes { id slug name durationMinutes isActive color location } }`),
   },

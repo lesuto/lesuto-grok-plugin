@@ -10,6 +10,8 @@ import { orderScenesForStitch } from '../lib/studio-clips.mjs';
 
 const SCENE_FIELDS = `id order label subject action cameraMove lighting durationSeconds isOpeningHook voiceover onScreenText status stillMode productId errorMessage keyframeAssetId keyframePreviewUrl endKeyframeAssetId endKeyframePreviewUrl renderedAssetId renderedPreviewUrl renderedSourceUrl`;
 const LIBRARY_FIELDS = `assetId kind name mimeType previewUrl sourceUrl labels sceneId provenance`;
+const CLIP_FIELDS = `id assetId kind own sourceUrl previewUrl briefId scriptId sceneId storeId productId sku productName brand category shotType aspectRatio durationSeconds engine frameSource showsRealProduct hasCharacter hasOverlays licenseStatus shareScope libraryAssetId reuseCount createdAt`;
+const CLIP_SHOT_TYPES = ['hero', 'detail', 'lifestyle', 'pan', 'unboxing', 'comparison', 'establishing'];
 const STUDIO_SHOT_PRESETS = [
   { id: 'product_orbit', stillMode: 'listing_orbit', cameraMove: 'Slow orbit around the product. Keep it filling the frame and in focus.', use: 'Listing photos as start and end. Product stays the hero.' },
   { id: 'material_closeup', stillMode: 'listing_orbit', cameraMove: 'Slow push into material and finish. The product fills the frame.', use: 'Wood grain, fabric, metal, or coating close-up.' },
@@ -382,6 +384,83 @@ const RAW_STUDIO_TOOLS = [
     ),
   },
   {
+    name: 'studio_clip_search',
+    description: 'Search the reusable clip library before rendering anything new. Every Studio scene clip and stitched cut is tagged with product, SKU, brand, store, category (furniture, house-plans, apparel, home-decor, saas-broll, lifestyle, or the product type), shotType (hero, detail, lifestyle, pan, unboxing, comparison, establishing), aspectRatio, durationSeconds, engine, frameSource, showsRealProduct (real catalog photo vs invented), licenseStatus and shareScope. kind=scene is a raw beat with no letters; kind=final is a stitched cut with overlays. scope=own (this store), carried (other stores\' clips of products this store carries), or all. Use a scene clip as clipAssetId on studio_scene_update, or studio_clip_reuse; adopt a carried clip with studio_clip_adopt first. Free.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        productId: { type: 'string' },
+        sku: { type: 'string' },
+        category: { type: 'string' },
+        shotType: { type: 'string', enum: CLIP_SHOT_TYPES },
+        aspectRatio: { type: 'string', enum: ['9:16', '16:9', '1:1', '4:5'] },
+        kind: { type: 'string', enum: ['scene', 'final'] },
+        minSeconds: { type: 'number' },
+        scope: { type: 'string', enum: ['own', 'carried', 'all'] },
+        take: { type: 'number' },
+        skip: { type: 'number' },
+      },
+    },
+    execute: (args) => gql(
+      `query StudioClips($filter: StudioClipFilter) { studioClips(filter: $filter) { totalItems items { ${CLIP_FIELDS} } } }`,
+      {
+        filter: {
+          productId: args.productId ? String(args.productId) : null,
+          sku: args.sku || null,
+          category: args.category || null,
+          shotType: args.shotType || null,
+          aspectRatio: args.aspectRatio || null,
+          kind: args.kind || null,
+          minSeconds: args.minSeconds != null ? Number(args.minSeconds) : null,
+          scope: args.scope || null,
+          take: args.take != null ? Number(args.take) : 25,
+          skip: args.skip != null ? Number(args.skip) : 0,
+        },
+      },
+    ),
+  },
+  {
+    name: 'studio_clip_reuse_options',
+    description: 'Free. Earlier clips of this store that can stand in for one scene at zero credits: same product (or same category with no product), same shot type, same frame, long enough, not already in this video. Best first. Place one with studio_clip_reuse.',
+    inputSchema: {
+      type: 'object',
+      properties: { sceneId: { type: 'string' }, take: { type: 'number' } },
+      required: ['sceneId'],
+    },
+    execute: (args) => gql(
+      `query StudioClipReuseOptions($sceneId: ID!, $take: Int) { studioClipReuseOptions(sceneId: $sceneId, take: $take) { ${CLIP_FIELDS} } }`,
+      { sceneId: String(args.sceneId), take: args.take != null ? Number(args.take) : 5 },
+    ),
+  },
+  {
+    name: 'studio_clip_reuse',
+    description: 'Zero credits. Put a clip from studio_clip_reuse_options on the scene instead of rendering it. Only an offered match is accepted.',
+    inputSchema: {
+      type: 'object',
+      properties: { sceneId: { type: 'string' }, assetId: { type: 'string' } },
+      required: ['sceneId', 'assetId'],
+    },
+    execute: (args) => gql(
+      `mutation ReuseStudioClip($sceneId: ID!, $assetId: ID!) { reuseStudioClip(sceneId: $sceneId, assetId: $assetId) { ${SCENE_FIELDS} } }`,
+      { sceneId: String(args.sceneId), assetId: String(args.assetId) },
+      true,
+    ),
+  },
+  {
+    name: 'studio_clip_adopt',
+    description: 'Add a clip another store shared with merchants who carry its product (studio_clip_search scope=carried) to this store library, so it can be a scene clip here. Free.',
+    inputSchema: {
+      type: 'object',
+      properties: { assetId: { type: 'string' } },
+      required: ['assetId'],
+    },
+    execute: (args) => gql(
+      `mutation AdoptStudioClip($assetId: ID!) { adoptStudioClip(assetId: $assetId) { ${CLIP_FIELDS} } }`,
+      { assetId: String(args.assetId) },
+      true,
+    ),
+  },
+  {
     name: 'studio_shot_presets',
     description: 'Product-first motion presets: product orbit, material close-up, feature detail, lifestyle fill, product hero. Apply with studio_scene_update shotPreset, then studio_render_scenes.',
     inputSchema: { type: 'object', properties: {} },
@@ -452,7 +531,7 @@ const RAW_STUDIO_TOOLS = [
   },
   {
     name: 'studio_render_scenes',
-    description: 'Enqueue motion from approved start and end stills. Pass sceneId for one clip. Without sceneId this charges every scene. Poll studio_job_status for an MP4 (never .mp4.png). quality=standard is about 150; engine=cinema is 350; quality=hero is 1080p Veo at 450. includeAudio adds native ambience on cinema/hero. Length follows the scene duration (about 3 to 4 seconds). Ready clips are free. Use the merchant store (L1), not the supplier channel. Letters burn on at stitch, not in this clip. product_hero cameraMove keeps the SKU in frame.',
+    description: 'Enqueue motion from approved start and end stills. Pass sceneId for one clip. Without sceneId this charges every scene. Poll studio_job_status for an MP4 (never .mp4.png). quality=standard is about 150; engine=cinema is 350; quality=hero is 1080p Veo at 450. includeAudio adds native ambience on cinema/hero. Length follows the scene duration (about 3 to 4 seconds). Ready clips are free. Use the merchant store (L1), not the supplier channel. Letters burn on at stitch, not in this clip. product_hero cameraMove keeps the SKU in frame. reuseSimilar=true first places a matching earlier clip of the same product and shot at zero credits (see studio_clip_reuse_options) and renders only the rest.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -462,11 +541,12 @@ const RAW_STUDIO_TOOLS = [
         quality: { type: 'string' },
         force: { type: 'boolean' },
         includeAudio: { type: 'boolean' },
+        reuseSimilar: { type: 'boolean' },
       },
       required: ['scriptId'],
     },
     execute: (args) => gql(
-      `mutation EnqueueRenders($scriptId: ID!, $sceneId: ID, $engine: String, $force: Boolean, $quality: String, $includeAudio: Boolean) { enqueueCreativeSceneRenders(scriptId: $scriptId, sceneId: $sceneId, engine: $engine, force: $force, quality: $quality, includeAudio: $includeAudio) { jobId estimatedMs } }`,
+      `mutation EnqueueRenders($scriptId: ID!, $sceneId: ID, $engine: String, $force: Boolean, $quality: String, $includeAudio: Boolean, $reuseSimilar: Boolean) { enqueueCreativeSceneRenders(scriptId: $scriptId, sceneId: $sceneId, engine: $engine, force: $force, quality: $quality, includeAudio: $includeAudio, reuseSimilar: $reuseSimilar) { jobId estimatedMs } }`,
       {
         scriptId: String(args.scriptId),
         sceneId: args.sceneId ? String(args.sceneId) : null,
@@ -474,6 +554,7 @@ const RAW_STUDIO_TOOLS = [
         force: args.force === true,
         quality: args.quality || null,
         includeAudio: args.includeAudio === true,
+        reuseSimilar: args.reuseSimilar === true,
       },
       true,
     ),
@@ -844,10 +925,10 @@ const RAW_STUDIO_TOOLS = [
   },
   {
     name: 'social_analytics',
-    description: 'Social Studio analytics for this channel. Call social_metrics_sync first if numbers look stale.',
+    description: 'Social Studio analytics for this channel: totals, by network, by account (byConnection with followers and engagement rate) and by brand. For side by side or brand rollups over time use social_analytics_compare. Call social_metrics_sync first if numbers look stale.',
     inputSchema: { type: 'object', properties: { storeId: { type: 'number' }, rangeDays: { type: 'number' } } },
     execute: (args) => gql(
-      `query Analytics($storeId: Int, $rangeDays: Int) { socialAnalytics(storeId: $storeId, rangeDays: $rangeDays) { rangeDays totals { posts posted impressions likes comments shares clicks engagementScore } byPlatform { key label posts engagementScore impressions } topPosts { id caption platform accountName postedAt publishedUrl engagementScore } } }`,
+      `query Analytics($storeId: Int, $rangeDays: Int) { socialAnalytics(storeId: $storeId, rangeDays: $rangeDays) { rangeDays totals { posts posted impressions likes comments shares clicks engagementScore } byPlatform { key label posts engagementScore impressions } byConnection { connectionId platform accountName brandGroupName followerCount posts posted impressions clicks engagementRate engagementScore } byBrandGroup { key label posts impressions clicks engagementScore } topPosts { id caption platform accountName postedAt publishedUrl engagementScore } } }`,
       { storeId: args.storeId ?? null, rangeDays: args.rangeDays ?? 30 },
     ),
   },

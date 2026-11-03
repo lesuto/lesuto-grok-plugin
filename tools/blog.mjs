@@ -1,6 +1,7 @@
+import { wrapCreditTool } from '../lib/credit-confirm.mjs';
 import { adminGraphql } from '../lib/graphql.mjs';
 
-const POST_FIELDS = `id slug title excerpt status author tags featuredImageUrl publishedAt createdAt articleType articleLayout`;
+const POST_FIELDS = `id slug title excerpt status author tags featuredImageUrl publishedAt createdAt articleType articleLayout websiteIds`;
 const POST_DETAIL = `${POST_FIELDS} body seoTitle seoDescription`;
 
 function slugify(title) {
@@ -27,10 +28,11 @@ function postInput(args) {
     seoDescription: args.seoDescription || null,
     status: args.status === 'scheduled' ? 'scheduled' : 'draft',
     scheduledAt: args.scheduledAt || null,
+    websiteIds: Array.isArray(args.websiteIds) ? args.websiteIds.map(String) : undefined,
   };
 }
 
-export const blogTools = [
+const RAW_BLOG_TOOLS = [
   {
     name: 'blog_list',
     description: 'List Command Center blog posts for this channel (draft, published, or all). Your agent can autoblog here instead of Lesuto AI Blog.',
@@ -76,6 +78,7 @@ export const blogTools = [
         articleLayout: { type: 'string' },
         seoTitle: { type: 'string' },
         seoDescription: { type: 'string' },
+        websiteIds: { type: 'array', items: { type: 'string' }, description: 'Deployment ids of the websites that show this post. Omit for every website of the channel whose blog scope is all.' },
         publish: { type: 'boolean' },
       },
       required: ['title'],
@@ -97,6 +100,52 @@ export const blogTools = [
     },
   },
   {
+    name: 'blog_generate',
+    description: 'Write a draft with Lesuto AI Blog (the same writer as Command Center and Studio). Charges AI credits. Requires a Content or All jobs key. Always a draft. Pass websiteIds to put it on those websites only.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        prompt: { type: 'string', description: 'What the article is about, who reads it, and the facts it may use.' },
+        articleType: { type: 'string' },
+        articleLayout: { type: 'string', description: 'playbook, aisle, explainer, feature, essay, or split' },
+        tone: { type: 'string' },
+        productNames: { type: 'array', items: { type: 'string' } },
+        linkedProductIds: { type: 'array', items: { type: 'number' } },
+        modelTier: { type: 'string' },
+        websiteIds: { type: 'array', items: { type: 'string' }, description: 'Deployment ids of the websites that show this post. Omit for every website of the channel whose blog scope is all.' },
+      },
+      required: ['prompt'],
+    },
+    execute: async (args) => {
+      const input = { prompt: String(args.prompt || '').trim() };
+      for (const key of ['articleType', 'articleLayout', 'tone', 'modelTier']) {
+        if (args[key]) input[key] = String(args[key]);
+      }
+      if (Array.isArray(args.productNames)) input.productNames = args.productNames.map(String);
+      if (Array.isArray(args.linkedProductIds)) input.linkedProductIds = args.linkedProductIds.map(Number);
+      const generated = await adminGraphql(
+        `mutation ChannelBlogGeneratePost($input: AiBlogGenerateInput!) { channelBlogGeneratePost(input: $input) { id slug title excerpt status creditsUsed } }`,
+        { input },
+        { allowWrite: true },
+      );
+      if (!Array.isArray(args.websiteIds)) return generated;
+      // The draft is written and paid for: a failed website assignment must not look like a failed
+      // generation, or a retry would write (and charge for) a second draft.
+      try {
+        return await adminGraphql(
+          `mutation AiBlogUpdatePost($id: ID!, $input: AiBlogUpdateInput!) { aiBlogUpdatePost(id: $id, input: $input) { ${POST_FIELDS} } }`,
+          { id: generated.channelBlogGeneratePost.id, input: { websiteIds: args.websiteIds.map(String) } },
+          { allowWrite: true },
+        );
+      } catch (err) {
+        return {
+          ...generated,
+          websiteIdsError: `The draft was written (id ${generated.channelBlogGeneratePost.id}) but not put on those websites: ${err?.message || err}. Use blog_update with websiteIds; do not generate it again.`,
+        };
+      }
+    },
+  },
+  {
     name: 'blog_update',
     description: 'Update a Command Center blog post by id. Requires a Content or All jobs key. Pass only fields to change.',
     inputSchema: {
@@ -114,6 +163,7 @@ export const blogTools = [
         articleLayout: { type: 'string' },
         seoTitle: { type: 'string' },
         seoDescription: { type: 'string' },
+        websiteIds: { type: 'array', items: { type: 'string' }, description: 'Deployment ids of the websites that show this post. Omit for every website of the channel whose blog scope is all.' },
       },
       required: ['id'],
     },
@@ -123,6 +173,7 @@ export const blogTools = [
         if (args[key] != null) input[key] = args[key];
       }
       if (Array.isArray(args.tags)) input.tags = args.tags;
+      if (Array.isArray(args.websiteIds)) input.websiteIds = args.websiteIds.map(String);
       return adminGraphql(
         `mutation AiBlogUpdatePost($id: ID!, $input: AiBlogUpdateInput!) { aiBlogUpdatePost(id: $id, input: $input) { ${POST_DETAIL} } }`,
         { id: String(args.id), input },
@@ -173,3 +224,5 @@ export const blogTools = [
     ),
   },
 ];
+
+export const blogTools = RAW_BLOG_TOOLS.map(wrapCreditTool);

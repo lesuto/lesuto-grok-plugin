@@ -1,8 +1,9 @@
 import { adminGraphql } from '../lib/graphql.mjs';
 import { getStickyStore, setStickyStore } from '../lib/store-state.mjs';
+import { groupStores } from '../lib/store-groups.mjs';
 
 const STORES_QUERY = `query AccessibleStores {
-  accessibleStores { alias channelToken channelCode channelName scope }
+  accessibleStores { alias channelToken channelCode channelName scope companyName brandName countryCode storeKind }
 }`;
 
 const ACCOUNT_OVERVIEW_QUERY = `query AgentAccountOverview($period: String) {
@@ -39,7 +40,7 @@ function matchStore(stores, hint) {
 export const storeTools = [
   {
     name: 'list_stores',
-    description: 'List the Lesuto stores this agent key can use. Each store has an L-code (L1, L2) plus the store name. Call use_store before working a specific store when the key covers more than one.',
+    description: 'List the Lesuto stores this agent key can use. Each store has an L-code (L1, L2) plus the store name, and groups shows them by company: merchant stores, then each brand with its countries. Call use_store before working a specific store when the key covers more than one.',
     inputSchema: { type: 'object', properties: {} },
     execute: async () => {
       const data = await adminGraphql(STORES_QUERY, {}, { requireStore: false });
@@ -47,6 +48,7 @@ export const storeTools = [
       const active = getStickyStore();
       return {
         stores,
+        groups: groupStores(stores),
         active: active ? active.alias : (stores.length === 1 ? stores[0].alias : null),
       };
     },

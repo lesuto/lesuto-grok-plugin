@@ -29,7 +29,7 @@ test('org and store rollup tools skip the channel token', () => {
 });
 
 test('tool GraphQL operations are not on the merchant denylist', () => {
-  for (const rel of ['tools/connect.mjs', 'tools/commerce.mjs', 'tools/hub.mjs', 'tools/blog.mjs', 'tools/stores.mjs', 'tools/org.mjs', 'tools/social.mjs', 'tools/social-review.mjs', 'tools/studio.mjs', 'tools/studio-extra.mjs', 'tools/marketplace.mjs', 'tools/catalog.mjs', 'tools/sites.mjs']) {
+  for (const rel of ['tools/connect.mjs', 'tools/commerce.mjs', 'tools/hub.mjs', 'tools/blog.mjs', 'tools/stores.mjs', 'tools/org.mjs', 'tools/social.mjs', 'tools/social-review.mjs', 'tools/social-planner.mjs', 'tools/studio.mjs', 'tools/studio-extra.mjs', 'tools/marketplace.mjs', 'tools/catalog.mjs', 'tools/sites.mjs']) {
     const src = readFileSync(join(pluginRoot, rel), 'utf8');
     const blocks = [...src.matchAll(/`((?:query|mutation)[\s\S]*?)`/g)].map((m) => m[1]);
     assert.ok(blocks.length > 0, rel);
@@ -146,6 +146,113 @@ test('blog_create stays draft unless publish is true', async () => {
     }, async (calls) => {
       await tool.execute({ title: 'Hello Store', publish: true });
       assert.equal(calls.length, 2);
+    });
+  });
+});
+
+test('blog_generate quotes its AI credits and writes nothing until confirm (Lesuto Audit)', async () => {
+  const tool = TOOLS.find((t) => t.name === 'blog_generate');
+  assert.equal(tool.inputSchema.properties.confirm.type, 'boolean');
+  await withAgentEnv(async () => {
+    await withMockFetch((_url, init) => {
+      const body = JSON.parse(init.body);
+      assert.match(body.query, /creativeStudioPricing \{ canSpend balance blogPost productArticle \}/);
+      return jsonResponse(200, { data: { creativeStudioPricing: { canSpend: true, balance: 500, blogPost: 80, productArticle: 100 } } });
+    }, async (calls) => {
+      const plain = await tool.execute({ prompt: 'QR codes on menus' });
+      assert.equal(plain.needsConfirm, true);
+      assert.equal(plain.credits, 80);
+      assert.equal(plain.remainingAfter, 420);
+      const article = await tool.execute({ prompt: 'Our mugs', linkedProductIds: [7], modelTier: 'pro' });
+      assert.equal(article.credits, 200);
+      const elite = await tool.execute({ prompt: 'x', modelTier: 'elite' });
+      assert.equal(elite.credits, 280);
+      assert.equal(calls.length, 3);
+      assert.equal(calls.some((c) => JSON.parse(c.init.body).query.includes('channelBlogGeneratePost')), false);
+    });
+  });
+});
+
+test('blog_generate on an older server still asks first, without a number', async () => {
+  const tool = TOOLS.find((t) => t.name === 'blog_generate');
+  await withAgentEnv(async () => {
+    await withMockFetch((_url, init) => {
+      const body = JSON.parse(init.body);
+      if (body.query.includes('blogPost')) return jsonResponse(200, { errors: [{ message: 'Cannot query field "blogPost" on type "CreativeStudioPricing".' }] });
+      return jsonResponse(200, { data: { creativeStudioPricing: { canSpend: true, balance: 500 } } });
+    }, async () => {
+      const quote = await tool.execute({ prompt: 'x' });
+      assert.equal(quote.needsConfirm, true);
+      assert.equal(quote.credits, null);
+      assert.match(quote.message, /uses AI credits/);
+    });
+  });
+});
+
+test('blog_generate: a failed website assignment returns the paid draft instead of an error', async () => {
+  const tool = TOOLS.find((t) => t.name === 'blog_generate');
+  await withAgentEnv(async () => {
+    await withMockFetch((_url, init) => {
+      const body = JSON.parse(init.body);
+      if (body.query.includes('creativeStudioPricing')) return jsonResponse(200, { data: { creativeStudioPricing: { canSpend: true, balance: 500, blogPost: 80, productArticle: 100 } } });
+      if (body.query.includes('channelBlogGeneratePost')) return jsonResponse(200, { data: { channelBlogGeneratePost: { id: 'g9', status: 'draft' } } });
+      return jsonResponse(200, { errors: [{ message: 'Website 308 is not on this channel' }] });
+    }, async () => {
+      const out = await tool.execute({ prompt: 'x', websiteIds: [308], confirm: true });
+      assert.equal(out.result.channelBlogGeneratePost.id, 'g9');
+      assert.match(out.result.websiteIdsError, /draft was written \(id g9\).*do not generate it again/);
+    });
+  });
+});
+
+test('blog_generate writes with AI Blog, then puts the draft on its websites', async () => {
+  const tool = TOOLS.find((t) => t.name === 'blog_generate');
+  await withAgentEnv(async () => {
+    await withMockFetch((_url, init) => {
+      const body = JSON.parse(init.body);
+      if (body.query.includes('creativeStudioPricing')) {
+        return jsonResponse(200, { data: { creativeStudioPricing: { canSpend: true, balance: 500, blogPost: 80, productArticle: 100 } } });
+      }
+      if (body.query.includes('channelBlogGeneratePost')) {
+        assert.equal(body.variables.input.prompt, 'QR codes on menus');
+        assert.equal(body.variables.input.articleLayout, 'playbook');
+        assert.equal('websiteIds' in body.variables.input, false);
+        return jsonResponse(200, { data: { channelBlogGeneratePost: { id: 'g1', status: 'draft' } } });
+      }
+      assert.match(body.query, /aiBlogUpdatePost/);
+      assert.equal(body.variables.id, 'g1');
+      assert.deepEqual(body.variables.input, { websiteIds: ['308'] });
+      return jsonResponse(200, { data: { aiBlogUpdatePost: { id: 'g1', websiteIds: ['308'] } } });
+    }, async (calls) => {
+      const out = await tool.execute({ prompt: 'QR codes on menus', articleLayout: 'playbook', websiteIds: [308], confirm: true });
+      assert.equal(calls.length, 3);
+      assert.equal(out.creditsQuoted, 80);
+    });
+  });
+});
+
+test('blog_cadence_save sends the website, destinations and approval mode', async () => {
+  const tool = TOOLS.find((t) => t.name === 'blog_cadence_save');
+  await withAgentEnv(async () => {
+    await withMockFetch((_url, init) => {
+      const body = JSON.parse(init.body);
+      assert.match(body.query, /upsertSocialBlogCadence/);
+      assert.deepEqual(body.variables.input, {
+        name: 'Lesuto Go daily',
+        growthLineId: 3,
+        storeId: 239,
+        deploymentConfigId: 308,
+        cadencePerDay: 1,
+        approvalMode: 'review',
+        publishDestinations: ['site_blog', 'linkedin'],
+      });
+      return jsonResponse(200, { data: { upsertSocialBlogCadence: { id: 'c1', status: 'draft' } } });
+    }, async (calls) => {
+      await tool.execute({
+        name: 'Lesuto Go daily', growthLineId: 3, storeId: 239, deploymentConfigId: 308,
+        cadencePerDay: 1, approvalMode: 'review', publishDestinations: ['site_blog', 'linkedin'],
+      });
+      assert.equal(calls.length, 1);
     });
   });
 });
@@ -349,6 +456,16 @@ test('studio stitch clip order and talent restage tools exist', async () => {
   assert.match(studioTools.find((t) => t.name === 'studio_scene_update').description, /stillsCleared/);
   assert.match(studioTools.find((t) => t.name === 'studio_scene_update').description, /startAssetId/);
   assert.ok(studioTools.find((t) => t.name === 'studio_assets'));
+  const clipSearch = studioTools.find((t) => t.name === 'studio_clip_search');
+  assert.ok(clipSearch);
+  assert.deepEqual(clipSearch.inputSchema.properties.shotType.enum, ['hero', 'detail', 'lifestyle', 'pan', 'unboxing', 'comparison', 'establishing']);
+  assert.deepEqual(clipSearch.inputSchema.properties.scope.enum, ['own', 'carried', 'all']);
+  assert.match(clipSearch.description, /showsRealProduct/);
+  assert.match(clipSearch.description, /licenseStatus/);
+  assert.ok(studioTools.find((t) => t.name === 'studio_clip_reuse_options'));
+  assert.ok(studioTools.find((t) => t.name === 'studio_clip_reuse'));
+  assert.ok(studioTools.find((t) => t.name === 'studio_clip_adopt'));
+  assert.equal(studioTools.find((t) => t.name === 'studio_render_scenes').inputSchema.properties.reuseSimilar.type, 'boolean');
   assert.ok(studioTools.find((t) => t.name === 'studio_shot_presets'));
   assert.ok(studioTools.find((t) => t.name === 'studio_music_search'));
   assert.match(studioTools.find((t) => t.name === 'studio_render_scenes').description, /includeAudio/);
@@ -613,7 +730,7 @@ test('catalog tools stay on add/remove and never createProduct', async () => {
     );
     await assert.rejects(
       () => Promise.resolve().then(() => catalogTools.find((t) => t.name === 'create_store_collection').execute({ name: 'Ranch', confirm: true })),
-      /storeId is required/,
+      /storeId or deploymentId is required/,
     );
     await assert.rejects(
       () => Promise.resolve().then(() => catalogTools.find((t) => t.name === 'delete_store_collection').execute({ collectionId: '12' })),
@@ -684,3 +801,175 @@ test('review-queue revise quotes credits first and approval tools validate input
   assert.throws(() => setApproval.execute({ scope: 'growth_line', id: '1', mode: 'yolo' }), /mode must be/);
   await assert.rejects(() => revise.execute({ postId: '7', instruction: 'x', target: 'audio' }), /target must be/);
 });
+
+test('studio_clip_search sends the clip filter and render passes reuseSimilar', async () => {
+  const search = TOOLS.find((t) => t.name === 'studio_clip_search');
+  const render = TOOLS.find((t) => t.name === 'studio_render_scenes');
+  await withAgentEnv(async () => {
+    await withMockFetch((_url, init) => {
+      const body = JSON.parse(init.body);
+      assert.match(body.query, /studioClips\(filter: \$filter\)/);
+      assert.deepEqual(body.variables.filter, {
+        productId: '77', sku: null, category: 'furniture', shotType: 'hero', aspectRatio: '9:16',
+        kind: 'scene', minSeconds: null, scope: 'carried', take: 25, skip: 0,
+      });
+      return jsonResponse(200, { data: { studioClips: { totalItems: 0, items: [] } } });
+    }, async () => {
+      await search.execute({ productId: 77, category: 'furniture', shotType: 'hero', aspectRatio: '9:16', kind: 'scene', scope: 'carried' });
+    });
+    let enqueued = 0;
+    await withMockFetch((_url, init) => {
+      const body = JSON.parse(init.body);
+      if (/enqueueCreativeSceneRenders/.test(body.query)) {
+        enqueued += 1;
+        assert.equal(body.variables.reuseSimilar, true);
+        return jsonResponse(200, { data: { enqueueCreativeSceneRenders: { jobId: 'j1', estimatedMs: 1 } } });
+      }
+      return jsonResponse(200, { data: { creativeStudioPricing: { canSpend: true, balance: 10000, videoStandardPerScene: 150 } } });
+    }, async () => {
+      await render.execute({ scriptId: '2', sceneId: '10', reuseSimilar: true, confirm: true });
+    });
+    assert.equal(enqueued, 1);
+  });
+});
+test('aisle tools name a website by storeId or deploymentId, never both, and read back its storeId', async () => {
+  const list = catalogTools.find((t) => t.name === 'list_store_collections');
+  const create = catalogTools.find((t) => t.name === 'create_store_collection');
+  assert.equal(list.inputSchema.required, undefined);
+  assert.ok(list.inputSchema.properties.deploymentId);
+  assert.deepEqual(create.inputSchema.required, ['name']);
+  assert.match(list.description, /deploymentId/);
+  assert.match(create.description, /deploymentId/);
+  assert.match(CATALOG_OPERATOR_GUIDE, /deploymentId/);
+  await withAgentEnv(async () => {
+    await assert.rejects(() => Promise.resolve().then(() => list.execute({})), /storeId or deploymentId is required/);
+    await assert.rejects(() => Promise.resolve().then(() => list.execute({ storeId: '12', deploymentId: '14' })), /not both/);
+    await withMockFetch(async () => jsonResponse(200, { data: { merchantCollections: { storeId: '31', ownedTotal: 0, supplierTotal: 0, ownedProductTotal: 0, supplierProductTotal: 0, ownedCollections: [], supplierCollections: [] } } }), async (calls) => {
+      const result = await list.execute({ deploymentId: '14' });
+      assert.equal(result.merchantCollections.storeId, '31');
+      const body = JSON.parse(calls[0].init.body);
+      assert.match(body.query, /merchantCollections\(storeId: \$storeId, deploymentId: \$deploymentId/);
+      assert.match(body.query, /\{\s*storeId ownedTotal/);
+      assert.equal(body.variables.deploymentId, '14');
+      assert.equal(body.variables.storeId, null);
+    });
+    await withMockFetch(async () => jsonResponse(200, { data: { createMerchantCollection: { id: '77' } } }), async (calls) => {
+      await create.execute({ name: 'Ranch', deploymentId: '14', parentId: '3', confirm: true });
+      const body = JSON.parse(calls[0].init.body);
+      assert.deepEqual(body.variables.input, { name: 'Ranch', deploymentId: '14', parentId: '3' });
+    });
+    await withMockFetch(async () => jsonResponse(200, { data: { createMerchantCollection: { id: '78' } } }), async (calls) => {
+      await create.execute({ name: 'Ranch', storeId: '12', confirm: true });
+      const body = JSON.parse(calls[0].init.body);
+      assert.deepEqual(body.variables.input, { name: 'Ranch', storeId: '12' });
+    });
+  });
+});
+
+test('list_meeting_types says Connect app pages are out of reach for agent keys', () => {
+  const tool = TOOLS.find((t) => t.name === 'list_meeting_types');
+  assert.match(tool.description, /Command Center/);
+  assert.match(tool.description, /Lesuto Connect app/);
+  assert.match(tool.description, /no agent key/);
+  const readme = readFileSync(join(pluginRoot, 'README.md'), 'utf8');
+  assert.equal(readme.includes('www.lesuto.com/signup'), false);
+  assert.match(readme, /www\.lesuto\.com\/sign-up/);
+});
+
+test('hub_publish_scene sends a device-export publish job and relies on the key\'s rights acceptance', async () => {
+  const { scenePublishInput } = await import('./tools/hub.mjs');
+  const input = scenePublishInput({ videoUrl: 'https://cdn.lesuto.com/scenes/mug.mp4', duration: 14.6, title: 'Rocks glass', caption: 'Hand-cut', hashtags: ['lesuto', ''], productIds: ['18833'], storeId: '243' });
+  assert.deepEqual(input, {
+    videoUrl: 'https://cdn.lesuto.com/scenes/mug.mp4',
+    duration: 15,
+    title: 'Rocks glass',
+    caption: 'Hand-cut',
+    thumbnailUrl: null,
+    publishJob: { needsServerRender: false },
+    hashtags: ['lesuto'],
+    productIds: ['18833'],
+    storeId: '243',
+  });
+  assert.equal(Object.keys(input).some((k) => /ack/i.test(k)), false);
+  assert.throws(() => scenePublishInput({ videoUrl: 'https://cdn.lesuto.com/scenes/mug.mp4.png', duration: 10 }), /finished MP4/);
+  assert.throws(() => scenePublishInput({ videoUrl: 'https://cdn.lesuto.com/scenes/mug.mp4', duration: 0 }), /duration/);
+  const tool = TOOLS.find((t) => t.name === 'hub_publish_scene');
+  assert.match(tool.description, /hub_create_scene/);
+  await withAgentEnv(async () => {
+    await withMockFetch(async () => jsonResponse(200, { data: { beginAsyncScenePublish: { id: '9', status: 'processing', hubPermalink: 'https://hub.lesuto.com/scene/9' } } }), async (calls) => {
+      const result = await tool.execute({ videoUrl: 'https://cdn.lesuto.com/scenes/mug.mp4', duration: 12 });
+      assert.equal(result.beginAsyncScenePublish.status, 'processing');
+      const body = JSON.parse(calls[0].init.body);
+      assert.deepEqual(body.variables.input.publishJob, { needsServerRender: false });
+    });
+  });
+});
+
+test('social_posts reads back scheduledAt and images, and social_post_update changes only what was passed', async () => {
+  const { socialPostUpdateInput } = await import('./tools/social.mjs');
+  const list = TOOLS.find((t) => t.name === 'social_posts');
+  await withAgentEnv(async () => {
+    await withMockFetch(async () => jsonResponse(200, { data: { socialAutomationPosts: [] } }), async (calls) => {
+      await list.execute({ status: 'scheduled' });
+      const body = JSON.parse(calls[0].init.body);
+      assert.match(body.query, /\bscheduledAt\b/);
+      assert.match(body.query, /\bimageUrls\b/);
+      assert.match(body.query, /\butmContent\b/);
+    });
+  });
+  assert.deepEqual(socialPostUpdateInput({ id: '5', imageUrls: ['https://cdn.lesuto.com/cover.jpg', ' '] }), { imageUrls: ['https://cdn.lesuto.com/cover.jpg'] });
+  assert.deepEqual(socialPostUpdateInput({ id: '5', caption: 'New', scheduledAt: '2026-11-04T09:00:00Z', hashtags: ['a'] }), { caption: 'New', scheduledAt: '2026-11-04T09:00:00Z', hashtags: ['a'] });
+  assert.throws(() => socialPostUpdateInput({ id: '5', imageUrls: ['http://insecure.example/x.jpg'] }), /https/);
+  assert.throws(() => socialPostUpdateInput({ id: '5' }), /at least one field/);
+  const update = TOOLS.find((t) => t.name === 'social_post_update');
+  assert.ok(update.inputSchema.properties.imageUrls);
+  assert.match(update.description, /imageUrls/);
+});
+
+test('every tool that mentions credits quotes them and needs confirm, unless listed as free (Lesuto Audit)', async () => {
+  const { isCreditTool, CREDIT_FREE_OR_SELF_QUOTED_TOOLS } = await import('./lib/credit-confirm.mjs');
+  const charging = TOOLS.filter((t) => /\bcredits?\b/i.test(t.description) && !CREDIT_FREE_OR_SELF_QUOTED_TOOLS.has(t.name));
+  for (const name of ['blog_generate', 'studio_reconstruct_3d', 'social_caption']) assert.ok(charging.some((t) => t.name === name), name);
+  for (const name of CREDIT_FREE_OR_SELF_QUOTED_TOOLS) assert.ok(TOOLS.some((t) => t.name === name), `stale free-list entry ${name}`);
+  for (const tool of charging) {
+    assert.equal(isCreditTool(tool.name), true, `${tool.name} charges credits but has no quote`);
+    assert.equal(tool.inputSchema.properties.confirm?.type, 'boolean', `${tool.name} has no confirm`);
+  }
+});
+
+test('Hub scene and story tools refuse non-https media before calling the server', async () => {
+  const scene = TOOLS.find((t) => t.name === 'hub_create_scene');
+  const story = TOOLS.find((t) => t.name === 'hub_create_story');
+  await withAgentEnv(async () => {
+    await withMockFetch(() => jsonResponse(200, { data: {} }), async (calls) => {
+      assert.throws(() => scene.execute({ title: 'a', videoUrl: 'javascript:alert(1)', duration: 5 }), /videoUrl must be an https URL/);
+      assert.throws(() => scene.execute({ title: 'a', videoUrl: 'https://cdn.example/a.mp4', thumbnailUrl: 'http://169.254.169.254/x', duration: 5 }), /thumbnailUrl must be an https URL/);
+      assert.throws(() => story.execute({ mediaUrl: 'data:image/png;base64,AAAA', storeId: '1' }), /mediaUrl must be an https URL/);
+      assert.throws(() => story.execute({ mediaUrl: 'https://cdn.example/a.jpg', linkUrl: 'javascript:alert(1)', storeId: '1' }), /linkUrl must be an http or https URL/);
+      assert.equal(calls.length, 0);
+    });
+  });
+});
+
+test('social_campaign_arm quotes the credits it reserves and arms only on confirm', async () => {
+  const tool = TOOLS.find((t) => t.name === 'social_campaign_arm');
+  await withAgentEnv(async () => {
+    await withMockFetch((_url, init) => {
+      const body = JSON.parse(init.body);
+      if (body.query.includes('socialCampaigns')) {
+        return jsonResponse(200, { data: { socialCampaigns: [{ id: 'c1', name: 'Spring', estimatedCredits: 240, creditHoldId: null }] } });
+      }
+      if (body.query.includes('reserveSocialCampaignCredits')) return jsonResponse(200, { data: { reserveSocialCampaignCredits: { id: 'c1', status: 'draft', creditHoldId: 'h1' } } });
+      return jsonResponse(200, { data: { armSocialCampaign: { id: 'c1', status: 'armed', creditHoldId: 'h1' } } });
+    }, async (calls) => {
+      const quote = await tool.execute({ id: 'c1' });
+      assert.equal(quote.needsConfirm, true);
+      assert.equal(quote.credits, 240);
+      assert.equal(calls.length, 1);
+      const armed = await tool.execute({ id: 'c1', confirm: true });
+      assert.equal(armed.armSocialCampaign.status, 'armed');
+      assert.equal(calls.length, 3);
+    });
+  });
+});
+

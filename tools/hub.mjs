@@ -5,6 +5,47 @@ function hubGraphql(query, variables, opts) {
   return graphqlWithHubPermalinkFallback(adminGraphql, query, variables, opts);
 }
 
+/** An https URL (trimmed), or a clear error naming the field; the server checks the same. */
+export function httpsUrl(value, field, { optional = false, allowHttp = false } = {}) {
+  const url = String(value ?? '').trim();
+  if (!url) {
+    if (optional) return null;
+    throw new Error(`${field} is required.`);
+  }
+  if (!(allowHttp ? /^https?:\/\/\S+$/i : /^https:\/\/\S+$/i).test(url)) {
+    throw new Error(`${field} must be ${allowHttp ? 'an http or https' : 'an https'} URL.`);
+  }
+  return url;
+}
+
+/**
+ * The publish request for a finished MP4: no server render (the clip is already exported, as
+ * when the Seller app publishes a device-exported scene), and no agreement version (the agent
+ * key carries its owner's acceptance). Until 2026-11-02 the tool sent neither field and every
+ * call was refused.
+ */
+export function scenePublishInput(args) {
+  const videoUrl = String(args?.videoUrl || '').trim();
+  const duration = Math.round(Number(args?.duration));
+  if (!/^https:\/\//.test(videoUrl) || /\.mp4\.png$/i.test(videoUrl)) throw new Error('videoUrl must be the https URL of a finished MP4, not a poster image.');
+  if (!Number.isFinite(duration) || duration <= 0) throw new Error('duration must be the clip length in seconds.');
+  const list = (value) => (Array.isArray(value) ? value.map((v) => String(v).trim()).filter(Boolean) : []);
+  const input = {
+    videoUrl,
+    duration,
+    title: args.title ? String(args.title) : null,
+    caption: args.caption ? String(args.caption) : null,
+    thumbnailUrl: args.thumbnailUrl ? String(args.thumbnailUrl) : null,
+    publishJob: { needsServerRender: false },
+  };
+  const hashtags = list(args.hashtags);
+  const productIds = list(args.productIds);
+  if (hashtags.length) input.hashtags = hashtags;
+  if (productIds.length) input.productIds = productIds;
+  if (args.storeId) input.storeId = String(args.storeId);
+  return input;
+}
+
 export const hubTools = [
   {
     name: 'store_status',
@@ -78,53 +119,102 @@ export const hubTools = [
   },
   {
     name: 'hub_create_scene',
-    description: 'Create a shoppable Hub scene (reel). Requires a Content or All jobs key. The key owner must have accepted the content-rights agreement. Hub is not Social Studio.',
+    description: 'Create a shoppable Hub scene (reel) from a hosted MP4. Requires a Content or All jobs key. The key owner must have accepted the content-rights agreement. Pass duration in seconds and the productIds shown in the scene. Hub is not Social Studio.',
     inputSchema: {
       type: 'object',
       properties: {
         title: { type: 'string' },
         videoUrl: { type: 'string' },
+        duration: { type: 'number', description: 'Video length in seconds' },
+        thumbnailUrl: { type: 'string' },
+        caption: { type: 'string' },
         storeId: { type: 'string' },
         productIds: { type: 'array', items: { type: 'string' } },
+        hashtags: { type: 'array', items: { type: 'string' } },
       },
-      required: ['title', 'videoUrl'],
+      required: ['title', 'videoUrl', 'duration'],
     },
-    execute: (args) => hubGraphql(
-      `mutation CreateScene($input: CreateSceneInput!) { createScene(input: $input) { id title hubPermalink } }`,
-      {
-        input: {
-          title: String(args.title),
-          videoUrl: String(args.videoUrl),
-          storeId: args.storeId || null,
-          productIds: Array.isArray(args.productIds) ? args.productIds.map(String) : undefined,
+    execute: (args) => {
+      const duration = Math.round(Number(args.duration));
+      if (!Number.isFinite(duration) || duration < 1) {
+        throw new Error('Pass duration: the video length in whole seconds.');
+      }
+      return hubGraphql(
+        `mutation CreateScene($input: CreateSceneInput!) { createScene(input: $input) { id title hubPermalink } }`,
+        {
+          input: {
+            title: String(args.title),
+            videoUrl: httpsUrl(args.videoUrl, 'videoUrl'),
+            duration,
+            thumbnailUrl: httpsUrl(args.thumbnailUrl, 'thumbnailUrl', { optional: true }),
+            caption: args.caption || null,
+            storeId: args.storeId || null,
+            productIds: Array.isArray(args.productIds) ? args.productIds.map(String) : undefined,
+            hashtags: Array.isArray(args.hashtags) ? args.hashtags.map(String) : undefined,
+          },
         },
+        { allowWrite: true },
+      );
+    },
+  },
+  {
+    name: 'hub_create_story',
+    description: 'Post a Hub store story (image or MP4) on a store profile. Requires a Content or All jobs key and the content-rights agreement. Stories expire after expiresInHours (default 24, max 168). Tag productIds so the story links to the products. Hub is not Social Studio.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mediaUrl: { type: 'string' },
+        mediaType: { type: 'string', description: 'image or video' },
+        thumbnailUrl: { type: 'string' },
+        caption: { type: 'string' },
+        linkUrl: { type: 'string' },
+        storeId: { type: 'string' },
+        productIds: { type: 'array', items: { type: 'string' } },
+        hashtags: { type: 'array', items: { type: 'string' } },
+        expiresInHours: { type: 'number' },
       },
-      { allowWrite: true },
-    ),
+      required: ['mediaUrl', 'storeId'],
+    },
+    execute: (args) => {
+      const mediaType = args.mediaType === 'video' || /\.mp4($|\?)/i.test(String(args.mediaUrl)) ? 'video' : 'image';
+      const hours = Math.min(Math.max(Math.round(Number(args.expiresInHours) || 24), 1), 168);
+      return adminGraphql(
+        `mutation CreateStoreStory($mediaUrl: String!, $mediaType: String, $thumbnailUrl: String, $caption: String, $linkUrl: String, $storeId: ID, $productIds: [ID!], $hashtags: [String!], $expiresInHours: Int) { createStoreStory(mediaUrl: $mediaUrl, mediaType: $mediaType, thumbnailUrl: $thumbnailUrl, caption: $caption, linkUrl: $linkUrl, storeId: $storeId, productIds: $productIds, hashtags: $hashtags, expiresInHours: $expiresInHours) { id storeId mediaType productIds expiresAt } }`,
+        {
+          mediaUrl: httpsUrl(args.mediaUrl, 'mediaUrl'),
+          mediaType,
+          thumbnailUrl: httpsUrl(args.thumbnailUrl, 'thumbnailUrl', { optional: true }),
+          caption: args.caption || null,
+          linkUrl: httpsUrl(args.linkUrl, 'linkUrl', { optional: true, allowHttp: true }),
+          storeId: String(args.storeId),
+          productIds: Array.isArray(args.productIds) ? args.productIds.map(String) : undefined,
+          hashtags: Array.isArray(args.hashtags) ? args.hashtags.map(String) : undefined,
+          expiresInHours: hours,
+        },
+        { allowWrite: true },
+      );
+    },
   },
   {
     name: 'hub_publish_scene',
-    description: 'Start async publish for a Hub scene. Hub is not Social Studio.',
+    description: 'Queue a finished MP4 as a Hub scene through the server publish pipeline (transcode, then live; returns status processing). Hub is not Social Studio. Requires a Content or All jobs key whose owner accepted the content-rights agreement; the key carries that acceptance. For a scene that should appear at once, hub_create_scene publishes the same MP4 directly.',
     inputSchema: {
       type: 'object',
       properties: {
-        videoUrl: { type: 'string' },
+        videoUrl: { type: 'string', description: 'A finished MP4 on the asset CDN (not a .mp4.png poster)' },
+        duration: { type: 'number', description: 'Seconds' },
         title: { type: 'string' },
-        duration: { type: 'number' },
+        caption: { type: 'string' },
+        hashtags: { type: 'array', items: { type: 'string' } },
+        productIds: { type: 'array', items: { type: 'string' } },
+        storeId: { type: 'string', description: 'Hub store id when the key covers several stores' },
         thumbnailUrl: { type: 'string' },
       },
       required: ['videoUrl', 'duration'],
     },
     execute: (args) => hubGraphql(
-      `mutation PublishScene($input: BeginAsyncScenePublishInput!) { beginAsyncScenePublish(input: $input) { id title hubPermalink } }`,
-      {
-        input: {
-          videoUrl: String(args.videoUrl),
-          duration: Number(args.duration),
-          title: args.title || null,
-          thumbnailUrl: args.thumbnailUrl || null,
-        },
-      },
+      `mutation PublishScene($input: BeginAsyncScenePublishInput!) { beginAsyncScenePublish(input: $input) { id title status hubPermalink } }`,
+      { input: scenePublishInput(args) },
       { allowWrite: true },
     ),
   },

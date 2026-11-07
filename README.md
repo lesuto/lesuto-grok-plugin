@@ -33,7 +33,7 @@ Grok works as **your agent**: a named account (say "Grok") that you sponsor, wit
 - Buy a shipping label after you confirm
 - Hub store status, site status, posts
 - Store blog: draft, update, publish
-- Social Studio: growth lines, campaigns, social posts, campaign video. Same Creative Studio path as admin (characters, look stills with numbered photo URLs so you can pick, voice pick, briefs, scripts, listing-photo start and end frames, stills, stitch overlays, 1080p, brand kit). Prefer stepwise `studio_*` tools; `studio_produce_video` then `studio_job_status` is the shortcut. `social_generate_video` with `includeAudio` asks Cinema (Veo) for native sound design, not a licensed song. Job `outputUrl` must be an MP4, not a `.mp4.png` poster. Optional 3D mesh is `studio_reconstruct_3d` when they asked for a GLB. Voice cloning, OAuth, and billing stay with a person. Look stills use membership AI credits (50 each). Listing keyframes are 12 each. Agent calls use integration credits (1 read / 2 write).
+- Social Studio: growth lines, campaigns, social posts, campaign video. Same Creative Studio path as admin (characters, look stills with numbered photo URLs so you can pick, voice pick, briefs, scripts, listing-photo start and end frames, stills, stitch overlays, 1080p, brand kit). Prefer stepwise `studio_*` tools; `studio_produce_video` then `studio_job_status` is the shortcut. `social_generate_video` with `includeAudio` asks Cinema (Veo) for native sound design, not a licensed song. Job `outputUrl` must be an MP4, not a `.mp4.png` poster. Optional 3D mesh is `studio_reconstruct_3d` when they asked for a GLB. Voice cloning, OAuth, and billing stay with a person. Look stills use membership AI credits (50 each). Listing keyframes are 12 each. Agent calls themselves cost no credits.
 - `list_stores` and `use_store` when you want one merchant or supplier store (L1, L2, or the store name)
 - `lesuto_graphql` for extra reads. Writes go through named tools.
 
@@ -64,9 +64,9 @@ From **23 April 2027** a key that still works as the person who made it stops wi
 
 Details: [AI Agent Access docs](https://docs.lesuto.com/docs/integrations/ai-agent-access).
 
-## Credits stay on each store
+## Agent calls and credits
 
-`account_overview` includes `creditBalance` on every store. That number is that store's integration credits. `org_overview` adds up revenue and orders for the company. Asking about one store spends that store's credits: **1** for a read, **2** for a write. `account_overview` itself is one read.
+Agent calls cost no credits. Each store's plan includes a monthly allowance of agent calls: past it calls are slowed, never refused, so a job always finishes. The plan also sets a per-minute limit. `account_overview` includes `creditBalance` on every store: that store's integration credits, which pay for marketplace sync, shipping labels and similar work, not for agent calls. `org_overview` adds up revenue and orders for the company.
 
 An agent covers the stores its role and scope reach, and only those its sponsor can still operate. If the sponsor loses a store, the agent stops covering it on the next question. The other stores keep working.
 
@@ -186,7 +186,7 @@ Raw GraphQL (no MCP): `POST https://api.lesuto.com/api/v3/admin/graphql` with yo
 
 Store the key in Grok or Cursor plugin settings. An agent holds up to 3 live keys, so you can rotate without downtime. Revoke the key (or the agent) in Command Center if a key leaks.
 
-Reads cost **1** integration credit. Writes cost **2**. `account_overview` is one read, no matter how many stores sit on the key. Exhausted credits return HTTP 402. Gateway rate limits per key: **60**/minute, **600**/hour, writes also **20**/minute.
+Agent calls cost no credits. Past the store plan's per-minute limit Lesuto answers HTTP 429 with `Retry-After`; this plugin waits that long and retries (twice at most). Past the monthly allowance calls are slowed, never refused. Each response carries `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-Lesuto-Agent-Calls-Month` and `X-Lesuto-Agent-Calls-Allowance`. Gateway safety ceiling per key: **1000**/minute.
 
 Network: this process only calls `https://api.lesuto.com/api/v3/admin/graphql` (stdio MCP, no install scripts, no remote shell). `lesuto_graphql` is queries only. Cancel/complete/no-show and buying a shipping label require `confirm: true`.
 

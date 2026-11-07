@@ -91,7 +91,7 @@ test('README has logo, signup, install, secrets, and no internal jargon', () => 
   assert.match(security, /LESUTO_AGENT_KEY/);
   assert.equal(security.includes('lsk_live_YOUR_KEY'), false);
   assert.equal(security.includes('lsk_live_'), false);
-  assert.match(readme, /60/);
+  assert.match(readme, /1000/);
   assert.match(readme, /integration credit/);
   for (const banned of [
     'SuperAdmin', 'Vendure', 'NestJS', 'TypeORM', 'Elasticsearch',
@@ -142,11 +142,11 @@ test('README rate limits match the gateway constants', () => {
   const limitsPath = join(pluginRoot, '../api-service/internal/gateway/grok_ratelimit.go');
   if (!existsSync(limitsPath)) return;
   const go = readFileSync(limitsPath, 'utf8');
-  const minute = go.match(/grokPerMinuteLimit\s*=\s*(\d+)/)[1];
-  const hour = go.match(/grokPerHourLimit\s*=\s*(\d+)/)[1];
-  const writes = go.match(/grokWriteLimit\s*=\s*(\d+)/)[1];
+  // QA-347: one per-key safety ceiling; the store plan's limits are admin's, and agent calls cost no credits.
+  const ceiling = go.match(/grokPerMinuteCeiling\s*=\s*(\d+)/)[1];
   const readme = read('README.md');
-  assert.match(readme, new RegExp(`\\*\\*${minute}\\*\\*/minute`));
-  assert.match(readme, new RegExp(`\\*\\*${hour}\\*\\*/hour`));
-  assert.match(readme, new RegExp(`\\*\\*${writes}\\*\\*/minute`));
+  assert.match(readme, new RegExp(`\\*\\*${ceiling}\\*\\*/minute`));
+  assert.doesNotMatch(readme, /\/hour/);
+  assert.match(readme, /Agent calls cost no credits/);
+  assert.match(readme, /Retry-After/);
 });

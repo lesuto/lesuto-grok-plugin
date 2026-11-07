@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { adminGraphql, apiBase, redactSecrets } from './lib/graphql.mjs';
+import { adminGraphql, apiBase, redactSecrets, retryTiming } from './lib/graphql.mjs';
 import { jsonResponse, withAgentEnv, withEnv, withMockFetch } from './test/helpers.mjs';
 
 test('apiBase defaults to production API and trims trailing slash', () => {
@@ -177,4 +177,31 @@ test('adminGraphql redacts secrets from fetch failures', async () => {
       });
     });
   });
+});
+
+test('adminGraphql waits out a 429 (Retry-After) and retries; it gives up after two', async () => {
+  const waits = [];
+  const realSleep = retryTiming.sleep;
+  retryTiming.sleep = async (ms) => { waits.push(ms); };
+  const limited = (seconds) => ({ ...jsonResponse(429, { errors: [{ message: 'Too many agent calls this minute' }] }), headers: { get: (h) => (h.toLowerCase() === 'retry-after' ? String(seconds) : null) } });
+  try {
+    await withAgentEnv(async () => {
+      let calls = 0;
+      await withMockFetch(() => (++calls === 1 ? limited(12) : jsonResponse(200, { data: { me: { id: '1' } } })), async () => {
+        assert.deepEqual(await adminGraphql('query { me { id } }'), { me: { id: '1' } });
+      });
+      assert.equal(calls, 2);
+      assert.deepEqual(waits, [12_000]);
+
+      waits.length = 0;
+      calls = 0;
+      await withMockFetch(() => { calls++; return limited(500); }, async () => {
+        await assert.rejects(() => adminGraphql('query { me { id } }'), /Too many agent calls this minute/);
+      });
+      assert.equal(calls, 3);
+      assert.deepEqual(waits, [60_000, 60_000]);
+    });
+  } finally {
+    retryTiming.sleep = realSleep;
+  }
 });

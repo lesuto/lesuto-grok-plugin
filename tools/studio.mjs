@@ -56,7 +56,7 @@ export function formatLookProposal(proposal) {
   const perStill = looks.length ? Math.round(creditsCharged / looks.length) : 0;
   const lines = [
     `Look options for character ${proposal?.characterId ?? ''}${proposal?.visualStyle ? ` (${proposal.visualStyle})` : ''}.`,
-    `AI credits charged: ${creditsCharged}${perStill ? ` (${perStill} per still)` : ''}. Agent writes also use integration credits.`,
+    `AI credits charged: ${creditsCharged}${perStill ? ` (${perStill} per still)` : ''}.`,
     'Show every photo. Ask which look to keep, then call studio_character_look_commit with that assetId and previewUrl.',
     '',
     ...looks.flatMap((look) => [

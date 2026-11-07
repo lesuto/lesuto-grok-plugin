@@ -313,7 +313,7 @@ test('skills cover Connect, catalog, orders, analytics, organizations, and Socia
   assert.match(social, /studio_character_looks_propose/);
   assert.match(social, /numbered HTTPS preview URLs/);
   assert.match(social, /12 AI credits/);
-  assert.match(social, /2 integration credits/);
+  assert.match(social, /Agent calls \(reads and writes\) cost no credits/);
   assert.match(social, /studio_keyframes/);
   assert.match(social, /studio_catalog_angles/);
   assert.match(social, /keyframeAssetId/);

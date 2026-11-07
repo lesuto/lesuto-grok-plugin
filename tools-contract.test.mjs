@@ -973,3 +973,23 @@ test('social_campaign_arm quotes the credits it reserves and arms only on confir
   });
 });
 
+
+test('blog_list pages past 50 posts with offset', async () => {
+  const tool = TOOLS.find((t) => t.name === 'blog_list');
+  await withAgentEnv(async () => {
+    await withMockFetch((_url, init) => {
+      const body = JSON.parse(init.body);
+      assert.match(body.query, /offset: \$offset/);
+      assert.deepEqual(body.variables, { status: 'published', limit: 50, offset: 50 });
+      return jsonResponse(200, { data: { channelBlogPostsAdmin: { totalItems: 73, items: [] } } });
+    }, async () => {
+      await tool.execute({ status: 'published', limit: 80, offset: 50 });
+    });
+    await withMockFetch((_url, init) => {
+      assert.equal(JSON.parse(init.body).variables.offset, 0);
+      return jsonResponse(200, { data: { channelBlogPostsAdmin: { totalItems: 0, items: [] } } });
+    }, async () => {
+      await tool.execute({ offset: -3 });
+    });
+  });
+});

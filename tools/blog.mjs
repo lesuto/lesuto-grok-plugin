@@ -35,17 +35,22 @@ function postInput(args) {
 const RAW_BLOG_TOOLS = [
   {
     name: 'blog_list',
-    description: 'List Command Center blog posts for this channel (draft, published, or all). Your agent can autoblog here instead of Lesuto AI Blog.',
+    description: 'List Command Center blog posts for this channel (draft, published, or all). Your agent can autoblog here instead of Lesuto AI Blog. Up to 50 per call; page with offset (offset 50 for the next 50) until you have totalItems.',
     inputSchema: {
       type: 'object',
       properties: {
         status: { type: 'string', description: 'draft, published, scheduled, or omit for all' },
-        limit: { type: 'number' },
+        limit: { type: 'number', description: 'Posts per call, at most 50 (default 20).' },
+        offset: { type: 'number', description: 'Posts to skip, for the next page (default 0).' },
       },
     },
     execute: (args) => adminGraphql(
-      `query ChannelBlogPostsAdmin($status: String, $limit: Int) { channelBlogPostsAdmin(status: $status, limit: $limit) { totalItems items { ${POST_FIELDS} } } }`,
-      { status: args.status || null, limit: Math.min(Number(args.limit) || 20, 50) },
+      `query ChannelBlogPostsAdmin($status: String, $limit: Int, $offset: Int) { channelBlogPostsAdmin(status: $status, limit: $limit, offset: $offset) { totalItems items { ${POST_FIELDS} } } }`,
+      {
+        status: args.status || null,
+        limit: Math.min(Number(args.limit) || 20, 50),
+        offset: Math.max(Math.floor(Number(args.offset) || 0), 0),
+      },
     ),
   },
   {

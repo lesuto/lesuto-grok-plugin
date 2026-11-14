@@ -70,7 +70,7 @@ export const socialPlannerTools = [
   },
   {
     name: 'social_planner_posts',
-    description: 'Planner view of Social Studio posts in a time window (scheduled time, else posted, else created), oldest first. Filter by brandGroupIds (from social_brands), connectionIds, platforms (instagram, facebook, threads, pinterest, x, linkedin, tiktok, youtube), statuses, storeId. from and to are ISO; up to 100 days and 500 posts per call. Defaults to a week ago through four weeks ahead.',
+    description: 'Planner view of Social Studio posts in a time window (scheduled time, else posted, else created), oldest first. Filter by brandGroupIds (from social_brands), connectionIds, platforms (instagram, facebook, threads, pinterest, x, linkedin, tiktok, youtube, bluesky), statuses, storeId. from and to are ISO; up to 100 days and 500 posts per call. Defaults to a week ago through four weeks ahead.',
     inputSchema: {
       type: 'object',
       properties: {

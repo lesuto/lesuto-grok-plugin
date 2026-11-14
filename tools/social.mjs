@@ -123,7 +123,7 @@ const RAW_SOCIAL_TOOLS = [
   },
   {
     name: 'social_connections',
-    description: 'List this merchant\'s connected Instagram, Threads, TikTok, YouTube, Facebook, Pinterest, X, and LinkedIn accounts (platform + accountName), with brand, followers, queue time slots and health: status expired or error, or a tokenExpiresAt soon with autoRenews false, means the owner must reconnect it in a browser. Not Hub shoppers or Command Center teammates.',
+    description: 'List this merchant\'s connected Instagram, Threads, TikTok, YouTube, Facebook, Pinterest, X, LinkedIn, and Bluesky accounts (platform + accountName), with brand, followers, queue time slots and health: status expired or error, or a tokenExpiresAt soon with autoRenews false, means the owner must reconnect it in a browser. Not Hub shoppers or Command Center teammates.',
     inputSchema: { type: 'object', properties: { storeId: { type: 'number' } } },
     execute: async (args) => {
       const vars = { storeId: args.storeId ?? null };
@@ -488,7 +488,7 @@ const RAW_SOCIAL_TOOLS = [
   },
   {
     name: 'social_post_schedule',
-    description: 'Schedule a social post to connected accounts. Lands in review by default.',
+    description: 'Schedule a social post to connected accounts (any connected network, Bluesky included). Lands in review by default. Bluesky takes 300 characters including hashtags and link, up to four images and no video.',
     inputSchema: {
       type: 'object',
       properties: {
